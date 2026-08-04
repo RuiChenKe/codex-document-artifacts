@@ -1,16 +1,18 @@
 # Codex 文档产物
 
-把 Codex 在任务最终回复中交付过的文档链接和文件，整理成一个可搜索、可筛选、可打开的本地文档库。
+把 Codex 在任务最终回复中交付过的文档链接和文件，整理成一个可搜索、可筛选、可打开的本地文档库，**并直接作为“文档产物”入口出现在 Codex 桌面版侧边栏中**。
+
+安装并启动后，你不需要另找网页：点击 Codex 左侧的“文档产物”，就能在当前窗口里查找、打开或复制过去交付的文档。
 
 ![文档产物界面](docs/screenshot.png)
 
-当前版本：[`v0.1.0`](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.1.0)（首个公开预览版）
+当前版本：[`v0.1.1`](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.1.1)（公开预览版）
 
 ## 它能帮你做什么
 
 用 Codex 做了一段时间后，文档往往散落在不同任务里。这个模块会从**本机仍保留的 Codex 历史最终交付**中找出受支持的链接和文件，并统一展示：
 
-- 默认扫描从最早保留记录到现在的全部历史，不再只看最近 90 天；页面初始筛选为“全部时间”。
+- 默认扫描本机仍保留的全部历史，页面初始筛选为“全部时间”。
 - 按项目、关键词、文档类型和时间查找。
 - 识别受支持的飞书/Lark、企业微信文档链接，以及 Word、Excel、PowerPoint 和 Markdown 文件。
 - 显示文档来自哪个 Codex 项目和任务，并可返回相关任务。
@@ -32,6 +34,8 @@
 
 启用任何可选能力前，请先阅读 [PRIVACY.md](PRIVACY.md)。安全问题请看 [SECURITY.md](SECURITY.md)。
 
+本项目是独立开源项目，不是 OpenAI、飞书、腾讯或 Microsoft 的官方产品。界面中用于识别文档类型的第三方产品名称与 Logo 归各自权利人所有，仅作兼容性识别；详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 ## 小白安装：三步完成
 
 下面是最省事的 macOS 安装方式。侧边栏模式需要已经安装 Codex 桌面版；Windows 和 Linux 用户请看后面的“从源码安装”。安装过程只发生在本机。
@@ -45,7 +49,7 @@
 ### 第 2 步：下载并安装
 
 1. 打开 [Releases 下载页](https://github.com/RuiChenKe/codex-document-artifacts/releases/latest)。
-2. 在该版本的 **Assets** 区域下载 [`codex-document-artifacts-v0.1.0-macos.zip`](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/v0.1.0/codex-document-artifacts-v0.1.0-macos.zip)。编程小白不要下载 GitHub 自动生成的 “Source code” 压缩包。
+2. 在该版本的 **Assets** 区域下载 [`codex-document-artifacts-v0.1.1-macos.zip`](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/v0.1.1/codex-document-artifacts-v0.1.1-macos.zip)。编程小白不要下载 GitHub 自动生成的 “Source code” 压缩包。
 3. 双击 ZIP 解压，再双击文件夹里的 `install.command`。
 4. 等窗口显示“安装完成”。第一次安装需要联网下载开源依赖，可能要几分钟。
 
@@ -134,7 +138,7 @@ macOS 嵌入模式则把末尾的 `npm start` 换成 `npm run codex`。一次可
 - Codex 最终回复中受支持的飞书/Lark、企业微信在线文档链接。
 - Codex 最终回复中明确交付的 Word、Excel、PowerPoint 文件路径。
 - Codex 最终回复中明确交付的 `.md` 或 `.markdown` 文件路径。
-- 本机仍保留的全部历史任务，不设默认 90 天截止线。
+- 本机仍保留的全部历史任务。
 
 ### 不会被自动收录
 
@@ -197,9 +201,9 @@ macOS 嵌入模式则把末尾的 `npm start` 换成 `npm run codex`。一次可
 
 这通常表示启动前只是关闭了 Codex 窗口，但应用并未完全退出。请按 `Command-Q` 完全退出 Codex，再双击 `start.command`。启动文件需要自己重新打开 Codex，才能把“文档产物”安全地加入侧边栏。
 
-### 为什么看不到 90 天以前的文档？
+### 为什么有些旧文档没有出现？
 
-`v0.1.0` 默认扫描本机保留的全部历史，并且初始显示“全部时间”。若旧文档仍缺失，常见原因是对应 Codex 任务已经不在本机索引中、最终回复没有包含受支持的链接或路径，或者页面仍设置了其他筛选条件。点击“清除筛选”后再试。
+程序会扫描本机仍保留的全部 Codex 历史，并且初始显示“全部时间”。若某份旧文档未出现，常见原因是对应任务已经不在本机索引中、Codex 的最终回复没有包含受支持的链接或路径，或者页面仍设置了其他筛选条件。点击“清除筛选”后再试。
 
 ### 为什么有些旧版本不能打开？
 

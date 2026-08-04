@@ -360,8 +360,16 @@ export function createDocumentArtifactsServer(options = {}) {
     onChange: (payload) => emit("document.updated", payload),
   });
 
+  let shuttingDown = false;
+  let closePromise = null;
   const server = createServer(async (request, response) => {
     try {
+      if (shuttingDown) {
+        response.setHeader("connection", "close");
+        return sendJson(response, 503, {
+          error: { code: "SERVER_SHUTTING_DOWN", message: "Server is restarting" },
+        });
+      }
       assertLoopbackRequest(request);
       const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
       const pathname = url.pathname;
@@ -585,18 +593,24 @@ export function createDocumentArtifactsServer(options = {}) {
       return server.address();
     },
     async close() {
-      clearInterval(heartbeat);
-      for (const response of eventResponses) response.end();
-      eventResponses.clear();
-      const closing = listening
-        ? new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
-        : Promise.resolve();
-      listening = false;
-      if (!storeClosed) {
-        await documentArtifacts.stop();
-        storeClosed = true;
-      }
-      await closing;
+      if (closePromise) return closePromise;
+      closePromise = (async () => {
+        shuttingDown = true;
+        clearInterval(heartbeat);
+        for (const response of eventResponses) response.end();
+        eventResponses.clear();
+        const closing = listening
+          ? new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+          : Promise.resolve();
+        listening = false;
+        server.closeIdleConnections?.();
+        await closing;
+        if (!storeClosed) {
+          await documentArtifacts.stop();
+          storeClosed = true;
+        }
+      })();
+      return closePromise;
     },
   };
 }

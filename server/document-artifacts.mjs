@@ -490,26 +490,24 @@ export class DocumentArtifactStore {
         WHERE artifact_id = document_artifacts.id
       ), created_at);
     `);
-    let needsRescan = false;
+    let needsFullRescan = false;
     const versionColumns = this.database.prepare("PRAGMA table_info(document_versions)").all();
     if (!versionColumns.some((column) => column.name === "delivery_context")) {
       this.database.exec("ALTER TABLE document_versions ADD COLUMN delivery_context TEXT NOT NULL DEFAULT '';");
-      needsRescan = true;
+      needsFullRescan = true;
     }
     const scanColumns = this.database.prepare("PRAGMA table_info(document_scan_state)").all();
     if (!scanColumns.some((column) => column.name === "last_user_context")) {
       this.database.exec("ALTER TABLE document_scan_state ADD COLUMN last_user_context TEXT NOT NULL DEFAULT '';");
-      needsRescan = true;
+      needsFullRescan = true;
     }
     if (!scanColumns.some((column) => column.name === "scanner_version")) {
       this.database.exec("ALTER TABLE document_scan_state ADD COLUMN scanner_version INTEGER NOT NULL DEFAULT 1;");
-      needsRescan = true;
+      needsFullRescan = true;
     }
-    if (this.database.prepare(`
+    const needsVersionRescan = Boolean(this.database.prepare(`
       SELECT 1 FROM document_scan_state WHERE scanner_version < ? LIMIT 1
-    `).get(DOCUMENT_SCANNER_VERSION)) {
-      needsRescan = true;
-    }
+    `).get(DOCUMENT_SCANNER_VERSION));
     const platformTitleColumns = this.database.prepare("PRAGMA table_info(document_platform_titles)").all();
     if (!platformTitleColumns.some((column) => column.name === "resolver_version")) {
       this.database.exec("ALTER TABLE document_platform_titles ADD COLUMN resolver_version INTEGER NOT NULL DEFAULT 1;");
@@ -576,12 +574,22 @@ export class DocumentArtifactStore {
         COMMIT;
         PRAGMA foreign_keys = ON;
       `);
-      needsRescan = true;
+      needsFullRescan = true;
     }
-    if (needsRescan) this.database.prepare(`
+    if (needsFullRescan) {
+      this.database.prepare(`
       UPDATE document_scan_state
-      SET byte_offset = 0, last_user_context = '', scanner_version = ?
-    `).run(DOCUMENT_SCANNER_VERSION);
+      SET byte_offset = 0,
+          last_user_context = '',
+          scanner_version = MIN(scanner_version, ?)
+      `).run(DOCUMENT_SCANNER_VERSION - 1);
+    } else if (needsVersionRescan) {
+      this.database.prepare(`
+        UPDATE document_scan_state
+        SET byte_offset = 0, last_user_context = ''
+        WHERE scanner_version < ?
+      `).run(DOCUMENT_SCANNER_VERSION);
+    }
   }
 
   async start() {
@@ -630,13 +638,19 @@ export class DocumentArtifactStore {
 
   async #readRollout(thread) {
     const scan = this.database.prepare(`
-      SELECT byte_offset, last_user_context FROM document_scan_state WHERE rollout_path = ?
+      SELECT byte_offset, last_user_context, scanner_version
+      FROM document_scan_state
+      WHERE rollout_path = ?
     `).get(thread.rollout_path);
-    const historical = !scan;
+    const requiresHistoricalRescan = !scan
+      || Number(scan.scanner_version ?? 1) < DOCUMENT_SCANNER_VERSION;
     const offset = Number(scan?.byte_offset ?? 0);
+    let historical = requiresHistoricalRescan;
     try {
       const info = await stat(thread.rollout_path);
       const safeOffset = offset <= info.size ? offset : 0;
+      const restartedAfterTruncation = safeOffset !== offset;
+      historical = requiresHistoricalRescan || restartedAfterTruncation;
       if (safeOffset >= info.size) {
         return {
           candidates: [],
@@ -650,7 +664,7 @@ export class DocumentArtifactStore {
         ? Date.now() - this.historyDays * DAY_MS
         : 0;
       let nextOffset = safeOffset;
-      let lastUserContext = scan?.last_user_context ?? "";
+      let lastUserContext = restartedAfterTruncation ? "" : (scan?.last_user_context ?? "");
       const stream = createReadStream(thread.rollout_path, {
         start: safeOffset,
       });

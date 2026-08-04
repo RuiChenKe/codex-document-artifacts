@@ -336,7 +336,7 @@
 }
 
 .documents-content { min-height: 0; overflow: auto; padding: 18px 22px 32px; }
-.documents-list { display: grid; gap: 8px; max-width: 1180px; margin: 0 auto; }
+.documents-list { display: grid; width: 100%; max-width: none; gap: 8px; }
 
 .document-card {
   overflow: hidden;
@@ -528,7 +528,7 @@
 .documents-markdown th { background: var(--surface-muted); }
 .documents-markdown blockquote { margin: 12px 0; border-left: 3px solid var(--accent); padding-left: 14px; color: var(--text-secondary); }
 
-.documents-loading { display: grid; gap: 9px; max-width: 1180px; margin: 0 auto; }
+.documents-loading { display: grid; width: 100%; max-width: none; gap: 9px; }
 .documents-loading i { height: 92px; border: 1px solid var(--border); border-radius: 10px; background: linear-gradient(100deg, var(--surface) 30%, var(--surface-hover) 50%, var(--surface) 70%); background-size: 220% 100%; animation: document-shimmer 1.2s infinite linear; }
 @keyframes document-shimmer { to { background-position: -220% 0; } }
 
