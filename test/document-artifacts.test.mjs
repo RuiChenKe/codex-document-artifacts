@@ -162,7 +162,7 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
 
   let store = new DocumentArtifactStore(storeOptions(fixture));
   const firstScan = await store.scanNow();
-  assert.equal(firstScan.scannedThreads, 1, "默认应扫描远早于 90 天的任务");
+  assert.equal(firstScan.scannedThreads, 1, "默认应扫描本机仍保留的全部历史任务");
   assert.equal((await stat(fixture.dataDirectory)).mode & 0o777, 0o700);
   assert.equal(
     (await stat(path.join(fixture.dataDirectory, "document-artifact-blobs"))).mode & 0o777,
@@ -218,6 +218,11 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
   )}\n`);
 
   store = new DocumentArtifactStore(storeOptions(fixture));
+  const pendingUpgradeState = store.database.prepare(`
+    SELECT scanner_version, byte_offset FROM document_scan_state
+  `).get();
+  assert.equal(pendingUpgradeState.scanner_version, 2, "完成回扫前不能提前标记为新版扫描器");
+  assert.equal(pendingUpgradeState.byte_offset, 0);
   const upgradeScan = await store.scanNow();
   assert.equal(upgradeScan.scannedThreads, 1);
   assert.equal(store.list({ limit: 200 }).total, 5, "scanner v3 升级应重置旧 offset 并完整重扫");
@@ -298,6 +303,31 @@ test("独立 HTTP 服务提供健康检查、列表和静态页面，并拒绝�
 
   const retiredCategory = await fetch(`${baseUrl}/api/local/document-artifacts?category=internal`);
   assert.equal(retiredCategory.status, 400);
+});
+
+test("HTTP 服务完全停止接收请求后才关闭文档索引", async (t) => {
+  const fixture = await createCodexFixture();
+  t.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const app = createDocumentArtifactsServer({
+    ...storeOptions(fixture),
+    staticDirectory: fixture.staticDirectory,
+  });
+  await app.listen({ port: 0 });
+
+  const lifecycle = [];
+  const closeServer = app.server.close.bind(app.server);
+  app.server.close = (callback) => closeServer((error) => {
+    lifecycle.push("http-closed");
+    callback(error);
+  });
+  const stopStore = app.documentArtifacts.stop.bind(app.documentArtifacts);
+  app.documentArtifacts.stop = async () => {
+    lifecycle.push("store-stopped");
+    await stopStore();
+  };
+
+  await Promise.all([app.close(), app.close()]);
+  assert.deepEqual(lifecycle, ["http-closed", "store-stopped"]);
 });
 
 test("Office 快照只有显式启用后才会创建", async (t) => {

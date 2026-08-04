@@ -20,3 +20,9 @@ test("the standalone UI scans all retained history and uses its own host protoco
   assert.doesNotMatch(source, /taskboard:/);
   assert.doesNotMatch(source, /internal-only|private-company\.example/u);
 });
+
+test("read-only API calls retry transient restart responses", async () => {
+  const source = await readFile(path.join(root, "web/src/documentArtifactsApi.ts"), "utf8");
+  assert.match(source, /TRANSIENT_HTTP_STATUS_CODES = new Set\(\[500, 502, 503, 504\]\)/);
+  assert.match(source, /TRANSIENT_HTTP_STATUS_CODES\.has\(response\.status\)/);
+});

@@ -10,6 +10,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "@daypicker/react/style.css";
 
+import excelLogo from "./assets/document-logos/excel.png";
+import feishuLogo from "./assets/document-logos/feishu.png";
+import powerpointLogo from "./assets/document-logos/powerpoint.png";
+import wecomLogo from "./assets/document-logos/wecom.png";
+import wordLogo from "./assets/document-logos/word.png";
 import { DateFilterPicker } from "./components/DateFilterPicker";
 import { CustomDocumentLibraryDialog } from "./components/CustomDocumentLibraryDialog";
 import {
@@ -128,8 +133,13 @@ function officeLabel(artifact: DocumentArtifact): string | null {
   return null;
 }
 
-function documentLogo(_artifact: DocumentArtifact, library?: DocumentLibrary): string | null {
+function documentLogo(artifact: DocumentArtifact, library?: DocumentLibrary): string | null {
   if (library?.kind === "custom" && library.logoDataUrl) return library.logoDataUrl;
+  if (artifact.category === "feishu") return feishuLogo;
+  if (artifact.category === "wecom") return wecomLogo;
+  if (artifact.officeType === "word") return wordLogo;
+  if (artifact.officeType === "excel") return excelLogo;
+  if (artifact.officeType === "powerpoint") return powerpointLogo;
   return null;
 }
 
@@ -316,9 +326,22 @@ export function DocumentArtifactsApp() {
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    void listDocumentLibraries()
-      .then(setLibraries)
-      .catch((libraryError) => setError(libraryError instanceof Error ? libraryError.message : "文档库配置加载失败"));
+    let cancelled = false;
+    const loadLibraries = async () => {
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt += 1) {
+        try {
+          const nextLibraries = await listDocumentLibraries();
+          if (!cancelled) setLibraries(nextLibraries);
+          return;
+        } catch {
+          if (attempt < 2 && !cancelled) {
+            await new Promise((resolve) => window.setTimeout(resolve, 150 * (attempt + 1)));
+          }
+        }
+      }
+    };
+    void loadLibraries();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {

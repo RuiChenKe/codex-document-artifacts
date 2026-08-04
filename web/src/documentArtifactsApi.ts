@@ -100,6 +100,7 @@ export interface DocumentArtifactPage {
 }
 
 const TRANSIENT_FETCH_RETRY_DELAYS_MS = [200, 600, 1_200];
+const TRANSIENT_HTTP_STATUS_CODES = new Set([500, 502, 503, 504]);
 
 function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -133,6 +134,17 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
           ...init?.headers,
         },
       });
+      if (
+        retryable
+        && TRANSIENT_HTTP_STATUS_CODES.has(response.status)
+        && TRANSIENT_FETCH_RETRY_DELAYS_MS[retryIndex] !== undefined
+      ) {
+        const delayMs = TRANSIENT_FETCH_RETRY_DELAYS_MS[retryIndex];
+        retryIndex += 1;
+        await response.body?.cancel().catch(() => undefined);
+        await waitForRetry(delayMs, init?.signal ?? undefined);
+        continue;
+      }
       break;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") throw error;
