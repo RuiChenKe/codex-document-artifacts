@@ -1,0 +1,40 @@
+{
+  "name": "codex-document-artifacts",
+  "version": "0.1.0",
+  "description": "A local document library for files and links delivered by Codex.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RuiChenKe/codex-document-artifacts.git"
+  },
+  "scripts": {
+    "build": "vite build --config web/vite.config.ts",
+    "check": "npm run typecheck && npm run build && npm test",
+    "codex": "node scripts/launcher.mjs --open",
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "node --watch server/index.mjs --dev",
+    "dev:web": "vite --config web/vite.config.ts",
+    "doctor": "node scripts/doctor.mjs",
+    "start": "node server/index.mjs",
+    "test": "node --test",
+    "typecheck": "tsc -p web/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@daypicker/react": "^10.0.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5"
+  }
+}
