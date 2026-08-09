@@ -10,6 +10,10 @@ const launcherSource = await readFile(
   new URL("../scripts/launcher.mjs", import.meta.url),
   "utf8",
 );
+const restoreSource = await readFile(
+  new URL("../skills/restore-document-sidebar/scripts/restore.mjs", import.meta.url),
+  "utf8",
+);
 
 test("the standalone injection exposes only the Document Artifacts entry", () => {
   assert.match(injectionSource, /const ENTRY_ID = "codex-documents-entry"/);
@@ -78,7 +82,16 @@ test("the launcher supervises the server and uses CDP port 9232", () => {
   assert.match(launcherSource, /Page\.addScriptToEvaluateOnNewDocument/);
   assert.match(launcherSource, /Runtime\.evaluate/);
   assert.match(launcherSource, /async function injectNewTargets/);
-  assert.match(launcherSource, /!targetUrl\.searchParams\.has\("initialRoute"\)/);
+  assert.match(launcherSource, /targetUrl\.hostname === "-"/);
+  assert.match(launcherSource, /targetUrl\.pathname === "\/index\.html"/);
+  assert.match(launcherSource, /Page\.reload/);
+  assert.ok(
+    launcherSource.indexOf('Page.setBypassCSP", { enabled: true }')
+      < launcherSource.indexOf('cdp.send("Page.reload")'),
+  );
+  assert.match(launcherSource, /state\.entrySelected/);
+  assert.match(launcherSource, /state\.frameVisible/);
+  assert.match(launcherSource, /state\.statusHidden/);
   assert.match(launcherSource, /ChatGPT\\\.app\\\/Contents\\\/MacOS\\\/ChatGPT/);
   assert.match(launcherSource, /launchedProcess\.kill\("SIGTERM"\)/);
   assert.match(launcherSource, /async function cleanupTarget\(cdp\)/);
@@ -88,6 +101,14 @@ test("the launcher supervises the server and uses CDP port 9232", () => {
   assert.match(launcherSource, /Page\.setBypassCSP", \{ enabled: false \}/);
   assert.doesNotMatch(launcherSource, /taskboard/i);
   assert.doesNotMatch(launcherSource, /automation/i);
+});
+
+test("the recovery skill verifies the exact main renderer and real iframe readiness", () => {
+  assert.match(restoreSource, /url\.hostname === "-"/);
+  assert.match(restoreSource, /url\.pathname === "\/index\.html"/);
+  assert.match(restoreSource, /frameVisible/);
+  assert.match(restoreSource, /statusHidden/);
+  assert.match(restoreSource, /entrySelected/);
 });
 
 test("runtime paths are repository-relative rather than user-specific", () => {

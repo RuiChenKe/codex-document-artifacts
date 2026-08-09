@@ -30,12 +30,12 @@ jobs:
             folder="codex-document-artifacts-bilibili-v1"
             asset="codex-document-artifacts-bilibili-v1-macos.zip"
             title="哔哩哔哩公司专供版 ${tag#bilibili-v}"
-            notes="内置飞书、知了、企业微信等公司常用文档平台模块；保留模块编辑、删除、按文件格式归类和恢复文档侧边栏 Skill；移除长期文档模块。支持让 Codex 按 CODEX_INSTALL.md 自动下载、校验、安装并激活。"
+            notes="修复新版 Codex/ChatGPT 安全策略导致的侧边栏加载失败，并加强真实加载验收；内置飞书、知了、企业微信等公司常用文档平台模块。支持让 Codex 按 CODEX_INSTALL.md 自动下载、校验、安装并激活。"
           else
             folder="codex-document-artifacts-${tag}"
             asset="codex-document-artifacts-${tag}-macos.zip"
             title="公开通用版 ${tag}"
-            notes="新增模块编辑与删除、按文件格式归类（含 PNG、JPG/JPEG、HTML 扫描），并附带恢复文档侧边栏 Skill。支持让 Codex 按 CODEX_INSTALL.md 自动下载、校验、安装并激活。"
+            notes="修复新版 Codex/ChatGPT 安全策略导致的侧边栏加载失败，并加强真实加载验收；附带恢复文档侧边栏 Skill。支持让 Codex 按 CODEX_INSTALL.md 自动下载、校验、安装并激活。"
           fi
           mkdir -p "release/${folder}"
           rsync -a ./ "release/${folder}/" \
