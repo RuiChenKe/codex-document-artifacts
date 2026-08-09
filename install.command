@@ -36,5 +36,7 @@ document_skill_dir="${codex_skills_dir}/restore-document-sidebar"
 /usr/bin/ditto "skills/restore-document-sidebar" "${document_skill_dir}"
 /usr/bin/printf '%s\n' "${PWD}" > "${document_skill_dir}/project-root.txt"
 
-echo "\n安装完成。以后双击 start.command 即可启动；也可以让 Codex 使用“恢复文档侧边栏”技能自动恢复。"
-read "?按回车键关闭窗口…"
+echo "\n安装完成。回到 Codex 说“激活文档产物侧边栏”即可；start.command 作为手动备用启动方式。"
+if [[ "${CODEX_DOCUMENT_ARTIFACTS_NONINTERACTIVE:-0}" != "1" ]]; then
+  read "?按回车键关闭窗口…"
+fi
