@@ -9,7 +9,7 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 
 ![文档产物界面](docs/screenshot.png)
 
-当前版本：[`v0.1.1`](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.1.1)（公开预览版）
+当前版本：[`v0.2.0`](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.2.0)（公开预览版）
 
 ## 它能帮你做什么
 
@@ -17,11 +17,12 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 
 - 默认扫描本机仍保留的全部历史，页面初始筛选为“全部时间”。
 - 按项目、关键词、文档类型和时间查找。
-- 识别受支持的飞书/Lark、企业微信文档链接，以及 Word、Excel、PowerPoint 和 Markdown 文件。
+- 识别受支持的飞书/Lark、企业微信文档链接，以及 Word、Excel、PowerPoint、Markdown、PNG/JPG/JPEG 图片和 HTML 文件。
 - 显示文档来自哪个 Codex 项目和任务，并可返回相关任务。
 - 折叠展示同一文档的多次交付或可用版本。
 - 点击“复制链接🔗”，把在线地址或本地文件路径复制到剪贴板。
-- 创建自己的文档库，用域名或标题、正文、时间、文件大小等规则自动归类。
+- 创建自己的文档库，可按域名、文件格式，或标题、正文、时间、文件大小等组合规则自动归类。
+- 对自定义文档库右击后可继续编辑名称、Logo 和规则，也可删除模块；删除模块不会删除原文档。
 
 它不是全盘文件搜索工具：没有在 Codex 最终回复中交付过的文件，不会被自动收录。
 
@@ -52,7 +53,7 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 ### 第 2 步：下载并安装
 
 1. 打开 [Releases 下载页](https://github.com/RuiChenKe/codex-document-artifacts/releases/latest)。
-2. 在该版本的 **Assets** 区域下载 [`codex-document-artifacts-v0.1.1-macos.zip`](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/v0.1.1/codex-document-artifacts-v0.1.1-macos.zip)。编程小白不要下载 GitHub 自动生成的 “Source code” 压缩包。
+2. 在该版本的 **Assets** 区域下载 [`codex-document-artifacts-v0.2.0-macos.zip`](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/v0.2.0/codex-document-artifacts-v0.2.0-macos.zip)。编程小白不要下载 GitHub 自动生成的 “Source code” 压缩包。
 3. 双击 ZIP 解压，再双击文件夹里的 `install.command`。
 4. 等窗口显示“安装完成”。第一次安装需要联网下载开源依赖，可能要几分钟。
 
@@ -65,8 +66,13 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 - 启动程序会重新打开 Codex，并自动进入侧边栏中的“文档产物”。
 - 如果只想使用普通网页，可以在项目文件夹中运行 `npm start`，再用浏览器访问 `http://127.0.0.1:47824/`。
 - 要停止服务，回到终端窗口按 `Control-C`，或直接关闭该窗口。
+- 安装向导还会安装“恢复文档侧边栏”Skill；以后入口消失时，可以直接让 Codex“恢复文档侧边栏”。
 
 以后使用时只需重复第 3 步，不必每天重新安装。
+
+### 自动恢复侧边栏
+
+安装完成后，可以直接对 Codex 说“恢复文档侧边栏”。随包附带的 Skill 会启动本机服务和常驻注入器，并真实点击入口确认页面能够加载；它不会删除或重建本地文档索引。
 
 ## 1 分钟验证是否安装成功
 

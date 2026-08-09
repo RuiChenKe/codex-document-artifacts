@@ -26,3 +26,16 @@ test("read-only API calls retry transient restart responses", async () => {
   assert.match(source, /TRANSIENT_HTTP_STATUS_CODES = new Set\(\[500, 502, 503, 504\]\)/);
   assert.match(source, /TRANSIENT_HTTP_STATUS_CODES\.has\(response\.status\)/);
 });
+
+test("custom document libraries expose edit and delete controls", async () => {
+  const appSource = await readFile(path.join(root, "web/src/DocumentArtifactsApp.tsx"), "utf8");
+  const dialogSource = await readFile(path.join(root, "web/src/components/CustomDocumentLibraryDialog.tsx"), "utf8");
+  const apiSource = await readFile(path.join(root, "web/src/documentArtifactsApi.ts"), "utf8");
+  assert.match(appSource, /编辑模块与规则/u);
+  assert.match(appSource, /删除模块/u);
+  assert.match(dialogSource, /编辑自定义文档库/u);
+  assert.match(dialogSource, /按文件格式/u);
+  assert.match(dialogSource, /extensionsText/u);
+  assert.match(apiSource, /method: "PUT"/u);
+  assert.match(apiSource, /method: "DELETE"/u);
+});

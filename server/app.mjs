@@ -203,7 +203,7 @@ function parseDate(value, field) {
 function parseLibrary(body) {
   assertPlainObject(body);
   assertAllowedKeys(body, new Set([
-    "name", "logoDataUrl", "matchType", "domainContains", "matchMode", "rules",
+    "name", "logoDataUrl", "matchType", "domainContains", "extensions", "matchMode", "rules",
   ]));
   const name = boundedString(body.name, "name", { maximum: 80, required: true }).trim();
   const logoDataUrl = body.logoDataUrl === null || body.logoDataUrl === undefined
@@ -212,8 +212,8 @@ function parseLibrary(body) {
   if (logoDataUrl && !/^data:image\/(?:png|jpeg|webp|svg\+xml);base64,/iu.test(logoDataUrl)) {
     throw new ApiError(400, "INVALID_FIELD", "'logoDataUrl' must be a supported image data URL");
   }
-  if (!new Set(["domain", "rules"]).has(body.matchType)) {
-    throw new ApiError(400, "INVALID_FIELD", "'matchType' must be 'domain' or 'rules'");
+  if (!new Set(["domain", "rules", "extension"]).has(body.matchType)) {
+    throw new ApiError(400, "INVALID_FIELD", "'matchType' must be 'domain', 'rules', or 'extension'");
   }
   const matchMode = body.matchMode ?? "all";
   if (!new Set(["all", "any"]).has(matchMode)) {
@@ -222,6 +222,22 @@ function parseLibrary(body) {
   const domainContains = boundedString(body.domainContains ?? "", "domainContains", { maximum: 253 }).trim();
   if (body.matchType === "domain" && !domainContains) {
     throw new ApiError(400, "INVALID_FIELD", "'domainContains' is required for a domain library");
+  }
+  const extensions = body.matchType === "extension" ? body.extensions : [];
+  if (!Array.isArray(extensions) || extensions.length > 30) {
+    throw new ApiError(400, "INVALID_FIELD", "'extensions' must be a list with at most 30 entries");
+  }
+  const normalizedExtensions = [...new Set(extensions.map((extension, index) => {
+    const value = boundedString(extension, `extensions[${index}]`, { maximum: 20, required: true })
+      .replace(/^\./u, "")
+      .toLocaleLowerCase("zh-CN");
+    if (!/^[a-z0-9]+$/u.test(value)) {
+      throw new ApiError(400, "INVALID_FIELD", `extensions[${index}] must be a file extension`);
+    }
+    return value;
+  }))];
+  if (body.matchType === "extension" && normalizedExtensions.length === 0) {
+    throw new ApiError(400, "INVALID_FIELD", "'extensions' is required for extension matching");
   }
   const rules = body.rules ?? [];
   if (!Array.isArray(rules) || rules.length > 20) {
@@ -248,6 +264,7 @@ function parseLibrary(body) {
     logoDataUrl,
     matchType: body.matchType,
     domainContains,
+    extensions: normalizedExtensions,
     matchMode,
     rules: body.matchType === "rules" ? normalizedRules : [],
   };
@@ -433,6 +450,28 @@ export function createDocumentArtifactsServer(options = {}) {
         const libraries = documentArtifacts.setLibraryOrder(body.ids);
         emit("document.updated", { reason: "libraries.reordered" });
         return sendJson(response, 200, { libraries });
+      }
+
+      const documentLibraryRoute = pathname.match(/^\/api\/local\/document-libraries\/([^/]+)$/);
+      if (documentLibraryRoute) {
+        if (!["PUT", "DELETE"].includes(request.method)) return methodNotAllowed(response, ["PUT", "DELETE"]);
+        assertNoQuery(url.searchParams, `${request.method} /api/local/document-libraries/:id`);
+        const libraryId = decodeId(documentLibraryRoute[1], "Document library id");
+        if (request.method === "DELETE") {
+          const body = await readJson(request);
+          assertPlainObject(body);
+          assertAllowedKeys(body, new Set());
+          if (!documentArtifacts.deleteLibrary(libraryId)) {
+            throw new ApiError(404, "DOCUMENT_LIBRARY_NOT_FOUND", "Document library was not found");
+          }
+          emit("document.updated", { reason: "library.deleted", libraryId });
+          response.writeHead(204, { "cache-control": "no-store" });
+          return response.end();
+        }
+        const library = documentArtifacts.updateLibrary(libraryId, parseLibrary(await readJson(request)));
+        if (!library) throw new ApiError(404, "DOCUMENT_LIBRARY_NOT_FOUND", "Document library was not found");
+        emit("document.updated", { reason: "library.updated", libraryId });
+        return sendJson(response, 200, { library });
       }
 
       if (pathname === "/api/local/document-artifacts") {

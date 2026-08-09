@@ -19,6 +19,7 @@ import { DateFilterPicker } from "./components/DateFilterPicker";
 import { CustomDocumentLibraryDialog } from "./components/CustomDocumentLibraryDialog";
 import {
   createDocumentLibrary,
+  deleteDocumentLibrary,
   getLongTermMarkdownDocument,
   getMarkdownArtifactDocument,
   listDocumentLibraries,
@@ -27,6 +28,7 @@ import {
   openLongTermDocument,
   reorderDocumentLibraries,
   rescanDocumentArtifacts,
+  updateDocumentLibrary,
   type CreateDocumentLibraryInput,
   type DocumentArtifact,
   type DocumentArtifactFilters,
@@ -66,6 +68,7 @@ const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   wecom: "企业微信",
   office: "Office",
   markdown: "Markdown",
+  file: "文件",
   memory: "Markdown",
 };
 
@@ -150,6 +153,7 @@ function documentGlyph(artifact: DocumentArtifact): string {
   if (artifact.category === "feishu") return "飞";
   if (artifact.category === "wecom") return "企";
   if (["memory", "markdown"].includes(artifact.category)) return "M↓";
+  if (artifact.category === "file") return "▧";
   return "▤";
 }
 
@@ -189,6 +193,8 @@ export function DocumentArtifactsApp() {
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [libraries, setLibraries] = useState<DocumentLibrary[]>(DEFAULT_DOCUMENT_LIBRARIES);
   const [libraryDialogOpen, setLibraryDialogOpen] = useState(false);
+  const [editingLibrary, setEditingLibrary] = useState<DocumentLibrary | null>(null);
+  const [libraryMenu, setLibraryMenu] = useState<{ library: DocumentLibrary; x: number; y: number } | null>(null);
   const [draggedLibraryId, setDraggedLibraryId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState("");
   const [search, setSearch] = useState("");
@@ -214,6 +220,7 @@ export function DocumentArtifactsApp() {
   const dragRegionRef = useRef<HTMLDivElement>(null);
   const timeFilterRef = useRef<HTMLDivElement>(null);
   const timeFilterTriggerRef = useRef<HTMLButtonElement>(null);
+  const libraryMenuRef = useRef<HTMLDivElement>(null);
   const loadSequence = useRef(0);
   const { startDate, endDate } = timeRangeDates(timeRange);
   const activeLibrary = libraries.find((library) => library.id === category);
@@ -241,6 +248,22 @@ export function DocumentArtifactsApp() {
     window.parent.postMessage({ type: "documents:ready" }, "*");
     return () => window.removeEventListener("message", receive);
   }, [embedded]);
+
+  useEffect(() => {
+    if (!libraryMenu) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!libraryMenuRef.current?.contains(event.target as Node)) setLibraryMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLibraryMenu(null);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick, true);
+    document.addEventListener("keydown", closeOnEscape, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
+      document.removeEventListener("keydown", closeOnEscape, true);
+    };
+  }, [libraryMenu]);
 
   useEffect(() => {
     if (!timeMenuOpen) return;
@@ -487,6 +510,35 @@ export function DocumentArtifactsApp() {
     setCategory(created.id);
   }
 
+  async function updateLibrary(id: string, input: CreateDocumentLibraryInput) {
+    const updated = await updateDocumentLibrary(id, input);
+    setLibraries(await listDocumentLibraries());
+    setCategory(updated.id);
+  }
+
+  async function deleteLibrary(library: DocumentLibrary) {
+    setLibraryMenu(null);
+    if (!window.confirm(`确定删除“${library.name}”模块吗？文档本身不会被删除。`)) return;
+    try {
+      await deleteDocumentLibrary(library.id);
+      setLibraries(await listDocumentLibraries());
+      if (category === library.id) setCategory("all");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "文档库删除失败");
+    }
+  }
+
+  function openLibraryEditor(library: DocumentLibrary) {
+    setLibraryMenu(null);
+    setEditingLibrary(library);
+    setLibraryDialogOpen(true);
+  }
+
+  function closeLibraryDialog() {
+    setLibraryDialogOpen(false);
+    setEditingLibrary(null);
+  }
+
   async function moveLibrary(targetId: string) {
     if (!draggedLibraryId || draggedLibraryId === targetId) return;
     const fromIndex = libraries.findIndex((library) => library.id === draggedLibraryId);
@@ -514,8 +566,10 @@ export function DocumentArtifactsApp() {
     <div className={`documents-shell${embedded ? " embedded" : ""}${reader ? " reader-open" : ""}`} style={shellStyle}>
       <CustomDocumentLibraryDialog
         open={libraryDialogOpen}
-        onClose={() => setLibraryDialogOpen(false)}
+        library={editingLibrary}
+        onClose={closeLibraryDialog}
         onCreate={createLibrary}
+        onUpdate={updateLibrary}
       />
       <header className="documents-header">
         <div className="documents-title-row">
@@ -596,7 +650,7 @@ export function DocumentArtifactsApp() {
                 draggable
                 aria-selected={category === library.id}
                 className={`${category === library.id ? "active" : ""}${draggedLibraryId === library.id ? " dragging" : ""}`}
-                title="拖拽调整文档库顺序"
+                title={library.kind === "custom" ? "拖拽调整顺序；右击编辑或删除" : "拖拽调整文档库顺序"}
                 onClick={() => setCategory(library.id)}
                 onDragStart={(event) => {
                   setDraggedLibraryId(library.id);
@@ -612,6 +666,16 @@ export function DocumentArtifactsApp() {
                   void moveLibrary(library.id);
                 }}
                 onDragEnd={() => setDraggedLibraryId(null)}
+                onContextMenu={(event) => {
+                  if (library.kind !== "custom") return;
+                  event.preventDefault();
+                  setDraggedLibraryId(null);
+                  setLibraryMenu({
+                    library,
+                    x: Math.min(event.clientX, window.innerWidth - 176),
+                    y: Math.min(event.clientY, window.innerHeight - 96),
+                  });
+                }}
               >
                 {library.logoDataUrl && <img className="document-library-tab-logo" src={library.logoDataUrl} alt="" aria-hidden="true" />}
                 {library.icon && <span className="long-term-star" aria-hidden="true">{library.icon}</span>}
@@ -741,6 +805,28 @@ export function DocumentArtifactsApp() {
           {hasFilters && <button className="documents-clear" type="button" onClick={clearFilters}>清除筛选</button>}
         </div>
       </section>
+
+      {libraryMenu && (
+        <div
+          className="document-library-context-menu"
+          ref={libraryMenuRef}
+          role="menu"
+          aria-label={`${libraryMenu.library.name} 操作`}
+          style={{ left: libraryMenu.x, top: libraryMenu.y }}
+        >
+          <button type="button" role="menuitem" onClick={() => openLibraryEditor(libraryMenu.library)}>
+            编辑模块与规则
+          </button>
+          <button
+            className="danger"
+            type="button"
+            role="menuitem"
+            onClick={() => void deleteLibrary(libraryMenu.library)}
+          >
+            删除模块
+          </button>
+        </div>
+      )}
 
       {error && <div className="documents-error" role="alert">{error}</div>}
 

@@ -13,7 +13,7 @@ const MAX_JSON_LINE_BYTES = 8 * 1024 * 1024;
 const PLATFORM_TITLE_SUCCESS_TTL_MS = 24 * 60 * 60 * 1000;
 const PLATFORM_TITLE_FAILURE_TTL_MS = 60 * 60 * 1000;
 const PLATFORM_TITLE_RESOLVER_VERSION = 2;
-const DOCUMENT_SCANNER_VERSION = 3;
+const DOCUMENT_SCANNER_VERSION = 4;
 const LONG_TERM_SOURCE_MAX_BYTES = 2 * 1024 * 1024;
 const IMPORTANT_MEMORY_FILES = ["memory_summary.md", "MEMORY.md", "raw_memories.md"];
 
@@ -22,6 +22,7 @@ const OFFICE_EXTENSIONS = new Map([
   [".xls", "excel"], [".xlsx", "excel"], [".xlsm", "excel"],
   [".ppt", "powerpoint"], [".pptx", "powerpoint"], [".pptm", "powerpoint"],
 ]);
+const CUSTOM_FORMAT_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".html"]);
 
 const FEISHU_PATHS = new Set(["doc", "docx", "wiki", "sheets", "slides", "base", "bitable"]);
 const WECOM_PATHS = new Set(["doc", "sheet", "smartpage"]);
@@ -246,6 +247,9 @@ function normalizeLocalPath(value) {
   if (extension === ".md" || extension === ".markdown") {
     return { category: "markdown", officeType: null, canonical: path.normalize(candidate) };
   }
+  if (CUSTOM_FORMAT_EXTENSIONS.has(extension)) {
+    return { category: "file", officeType: null, canonical: path.normalize(candidate) };
+  }
   const officeType = OFFICE_EXTENSIONS.get(extension);
   if (!officeType) return null;
   return { category: "office", officeType, canonical: path.normalize(candidate) };
@@ -300,10 +304,10 @@ function extractCandidates(text) {
     add("", match[0].replace(/[.,;:，。；：!?！？]+$/u, ""), match.index, match[0].length);
   }
 
-  const codePath = /`(\/[^`\n]+\.(?:docx?|docm|xlsx?|xlsm|pptx?|pptm|md|markdown))`/giu;
+  const codePath = /`(\/[^`\n]+\.(?:docx?|docm|xlsx?|xlsm|pptx?|pptm|md|markdown|png|jpe?g|html))`/giu;
   for (const match of text.matchAll(codePath)) add("", match[1], match.index, match[0].length);
 
-  const plainPath = /(?:^|\s)(\/[^\n<>"']+?\.(?:docx?|docm|xlsx?|xlsm|pptx?|pptm|md|markdown))(?=$|\s|[，。；：!?！？])/giu;
+  const plainPath = /(?:^|\s)(\/[^\n<>"']+?\.(?:docx?|docm|xlsx?|xlsm|pptx?|pptm|md|markdown|png|jpe?g|html))(?=$|\s|[，。；：!?！？])/giu;
   for (const match of text.matchAll(plainPath)) add("", match[1], match.index, match[0].length);
   return candidates;
 }
@@ -343,9 +347,9 @@ function projectContext(state, threadId, cwd) {
 }
 
 function rowToVersion(row, isLatest) {
-  const office = row.category === "office";
+  const local = ["office", "markdown", "file"].includes(row.category);
   const markdown = row.category === "markdown";
-  const currentExists = (office || markdown) && isLatest && existsSync(row.locator);
+  const currentExists = local && isLatest && existsSync(row.locator);
   return {
     id: row.id,
     threadId: row.thread_id,
@@ -359,7 +363,7 @@ function rowToVersion(row, isLatest) {
     snapshotStatus: row.snapshot_status,
     openable: markdown
       ? currentExists
-      : !office || Boolean(row.snapshot_path && existsSync(row.snapshot_path)) || currentExists,
+      : !local || Boolean(row.snapshot_path && existsSync(row.snapshot_path)) || currentExists,
     isLatest,
   };
 }
@@ -415,7 +419,7 @@ export class DocumentArtifactStore {
       CREATE TABLE IF NOT EXISTS document_artifacts (
         id TEXT PRIMARY KEY,
         logical_key TEXT NOT NULL UNIQUE,
-        category TEXT NOT NULL CHECK (category IN ('feishu', 'wecom', 'office', 'markdown')),
+        category TEXT NOT NULL CHECK (category IN ('feishu', 'wecom', 'office', 'markdown', 'file')),
         office_type TEXT CHECK (office_type IS NULL OR office_type IN ('word', 'excel', 'powerpoint')),
         title TEXT NOT NULL,
         latest_locator TEXT NOT NULL,
@@ -470,8 +474,9 @@ export class DocumentArtifactStore {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         logo_data_url TEXT,
-        match_type TEXT NOT NULL CHECK (match_type IN ('domain', 'rules')),
+        match_type TEXT NOT NULL CHECK (match_type IN ('domain', 'rules', 'extension')),
         domain_contains TEXT,
+        extensions_json TEXT NOT NULL DEFAULT '[]',
         match_mode TEXT NOT NULL DEFAULT 'all' CHECK (match_mode IN ('all', 'any')),
         rules_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL,
@@ -512,10 +517,44 @@ export class DocumentArtifactStore {
     if (!platformTitleColumns.some((column) => column.name === "resolver_version")) {
       this.database.exec("ALTER TABLE document_platform_titles ADD COLUMN resolver_version INTEGER NOT NULL DEFAULT 1;");
     }
+    const libraryColumns = this.database.prepare("PRAGMA table_info(document_libraries)").all();
+    if (!libraryColumns.some((column) => column.name === "extensions_json")) {
+      this.database.exec("ALTER TABLE document_libraries ADD COLUMN extensions_json TEXT NOT NULL DEFAULT '[]';");
+    }
+    const librarySchema = this.database.prepare(`
+      SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'document_libraries'
+    `).get()?.sql ?? "";
+    if (!librarySchema.includes("'extension'")) {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        ALTER TABLE document_libraries RENAME TO document_libraries_before_extension;
+        CREATE TABLE document_libraries (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          logo_data_url TEXT,
+          match_type TEXT NOT NULL CHECK (match_type IN ('domain', 'rules', 'extension')),
+          domain_contains TEXT,
+          extensions_json TEXT NOT NULL DEFAULT '[]',
+          match_mode TEXT NOT NULL DEFAULT 'all' CHECK (match_mode IN ('all', 'any')),
+          rules_json TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO document_libraries (
+          id, name, logo_data_url, match_type, domain_contains, extensions_json,
+          match_mode, rules_json, created_at, updated_at
+        ) SELECT
+          id, name, logo_data_url, match_type, domain_contains,
+          COALESCE(extensions_json, '[]'), match_mode, rules_json, created_at, updated_at
+        FROM document_libraries_before_extension;
+        DROP TABLE document_libraries_before_extension;
+        COMMIT;
+      `);
+    }
     const artifactSchema = this.database.prepare(`
       SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'document_artifacts'
     `).get()?.sql ?? "";
-    if (!artifactSchema.includes("'markdown'")) {
+    if (!artifactSchema.includes("'markdown'") || !artifactSchema.includes("'file'")) {
       this.database.exec(`
         PRAGMA foreign_keys = OFF;
         BEGIN IMMEDIATE;
@@ -525,7 +564,7 @@ export class DocumentArtifactStore {
         CREATE TABLE document_artifacts (
           id TEXT PRIMARY KEY,
           logical_key TEXT NOT NULL UNIQUE,
-          category TEXT NOT NULL CHECK (category IN ('feishu', 'wecom', 'office', 'markdown')),
+          category TEXT NOT NULL CHECK (category IN ('feishu', 'wecom', 'office', 'markdown', 'file')),
           office_type TEXT CHECK (office_type IS NULL OR office_type IN ('word', 'excel', 'powerpoint')),
           title TEXT NOT NULL,
           latest_locator TEXT NOT NULL,
@@ -747,7 +786,7 @@ export class DocumentArtifactStore {
   }
 
   async #snapshot(candidate, allowHistoricalSnapshot) {
-    if (candidate.category === "markdown") {
+    if (["markdown", "file"].includes(candidate.category)) {
       return { snapshotPath: null, snapshotStatus: "unavailable_historical" };
     }
     if (candidate.category !== "office") {
@@ -1343,6 +1382,7 @@ export class DocumentArtifactStore {
       logoDataUrl: library.logo_data_url || null,
       matchType: library.match_type,
       domainContains: library.domain_contains || "",
+      extensions: safeJson(library.extensions_json, []),
       matchMode: library.match_mode,
       rules: safeJson(library.rules_json, []),
     }));
@@ -1361,20 +1401,21 @@ export class DocumentArtifactStore {
       .map(({ position: _position, ...library }) => library);
   }
 
-  createLibrary({ name, logoDataUrl = null, matchType, domainContains = "", matchMode = "all", rules = [] }) {
+  createLibrary({ name, logoDataUrl = null, matchType, domainContains = "", extensions = [], matchMode = "all", rules = [] }) {
     const id = `custom-${randomUUID()}`;
     const timestamp = nowIso();
     this.database.prepare(`
       INSERT INTO document_libraries (
-        id, name, logo_data_url, match_type, domain_contains, match_mode,
+        id, name, logo_data_url, match_type, domain_contains, extensions_json, match_mode,
         rules_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       normalizeLabel(name),
       logoDataUrl || null,
       matchType,
       matchType === "domain" ? normalizeLabel(domainContains).toLocaleLowerCase("zh-CN") : null,
+      JSON.stringify(matchType === "extension" ? extensions : []),
       matchMode,
       JSON.stringify(matchType === "rules" ? rules : []),
       timestamp,
@@ -1383,6 +1424,35 @@ export class DocumentArtifactStore {
     const order = this.listLibraries().map((library) => library.id);
     this.setLibraryOrder(order);
     return this.listLibraries().find((library) => library.id === id);
+  }
+
+  updateLibrary(id, { name, logoDataUrl = null, matchType, domainContains = "", extensions = [], matchMode = "all", rules = [] }) {
+    const existing = this.database.prepare("SELECT id FROM document_libraries WHERE id = ?").get(id);
+    if (!existing) return null;
+    this.database.prepare(`
+      UPDATE document_libraries
+      SET name = ?, logo_data_url = ?, match_type = ?, domain_contains = ?, extensions_json = ?,
+          match_mode = ?, rules_json = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      normalizeLabel(name),
+      logoDataUrl || null,
+      matchType,
+      matchType === "domain" ? normalizeLabel(domainContains).toLocaleLowerCase("zh-CN") : null,
+      JSON.stringify(matchType === "extension" ? extensions : []),
+      matchMode,
+      JSON.stringify(matchType === "rules" ? rules : []),
+      nowIso(),
+      id,
+    );
+    return this.listLibraries().find((library) => library.id === id) ?? null;
+  }
+
+  deleteLibrary(id) {
+    const result = this.database.prepare("DELETE FROM document_libraries WHERE id = ?").run(id);
+    if (result.changes === 0) return false;
+    this.database.prepare("DELETE FROM document_library_order WHERE library_id = ?").run(id);
+    return true;
   }
 
   setLibraryOrder(ids) {
@@ -1416,6 +1486,12 @@ export class DocumentArtifactStore {
       } catch {
         return false;
       }
+    }
+    if (library.match_type === "extension") {
+      if (!String(artifact.locator ?? "").startsWith("/")) return false;
+      const extension = path.extname(artifact.locator).slice(1).toLocaleLowerCase("zh-CN");
+      const extensions = safeJson(library.extensions_json, []);
+      return Array.isArray(extensions) && extensions.includes(extension);
     }
     const rules = safeJson(library.rules_json, []);
     if (rules.length === 0) return false;
@@ -1528,7 +1604,7 @@ export class DocumentArtifactStore {
           SELECT * FROM document_versions WHERE id = ? AND artifact_id = ?
         `).get(artifact.latest_version_id, artifactId);
     if (!version) return { error: "VERSION_NOT_FOUND" };
-    if (artifact.category === "markdown") {
+    if (["markdown", "file"].includes(artifact.category)) {
       if (version.id === artifact.latest_version_id && existsSync(version.locator)) {
         return { target: version.locator };
       }

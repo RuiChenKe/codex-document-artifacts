@@ -43,11 +43,13 @@ async function createCodexFixture() {
   const laterMarkdownPath = path.join(workspace, "later-guide.md");
   const ignoredMarkdownPath = path.join(workspace, "ignored.md");
   const officePath = path.join(workspace, "roadmap.pptx");
+  const imagePath = path.join(workspace, "preview.png");
   await Promise.all([
     writeFile(markdownPath, "# 本地使用指南\n\n正文\n"),
     writeFile(laterMarkdownPath, "# 后续补充\n"),
     writeFile(ignoredMarkdownPath, "# 不应出现\n"),
     writeFile(officePath, "fake office fixture"),
+    writeFile(imagePath, "fake image fixture"),
     writeFile(path.join(memoryDirectory, "memory_summary.md"), "# Memory\n"),
     writeFile(path.join(staticDirectory, "index.html"), "<!doctype html><title>Document artifacts fixture</title>"),
   ]);
@@ -65,6 +67,7 @@ async function createCodexFixture() {
       "[无关网页](https://internal.example/doc/internal-token)",
       `[本地说明](${markdownPath})`,
       `[演示文稿](${officePath})`,
+      `[预览图片](${imagePath})`,
     ].join("\n"), "final_answer"),
   ];
   await writeFile(rolloutPath, `${lines.join("\n")}\n`);
@@ -121,6 +124,7 @@ async function createCodexFixture() {
     laterMarkdownPath,
     ignoredMarkdownPath,
     officePath,
+    imagePath,
   };
 }
 
@@ -180,13 +184,14 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
   }
 
   const firstPage = store.list({ limit: 200 });
-  assert.equal(firstPage.total, 4);
+  assert.equal(firstPage.total, 5);
   const locators = new Set(firstPage.items.map((item) => item.locator));
   assert.deepEqual(locators, new Set([
     "https://example.feishu.cn/docx/old-token",
     "https://doc.weixin.qq.com/doc/wecom-token",
     fixture.markdownPath,
     fixture.officePath,
+    fixture.imagePath,
   ]));
   assert.ok(!locators.has(fixture.ignoredMarkdownPath), "commentary 和无 phase 的消息不能成为产物");
   assert.ok(![...locators].some((locator) => locator.includes("internal.example")));
@@ -225,12 +230,12 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
   assert.equal(pendingUpgradeState.byte_offset, 0);
   const upgradeScan = await store.scanNow();
   assert.equal(upgradeScan.scannedThreads, 1);
-  assert.equal(store.list({ limit: 200 }).total, 5, "scanner v3 升级应重置旧 offset 并完整重扫");
+  assert.equal(store.list({ limit: 200 }).total, 6, "scanner v4 升级应重置旧 offset 并完整重扫");
   assert.equal(store.list({ query: "后续补充" }).items[0]?.locator, fixture.laterMarkdownPath);
   const scanState = store.database.prepare(`
     SELECT scanner_version, byte_offset FROM document_scan_state
   `).get();
-  assert.equal(scanState.scanner_version, 3);
+  assert.equal(scanState.scanner_version, 4);
   assert.ok(scanState.byte_offset > 0);
   await store.stop();
 
@@ -260,13 +265,81 @@ test("独立 HTTP 服务提供健康检查、列表和静态页面，并拒绝�
   assert.equal(healthResponse.status, 200);
   const health = await healthResponse.json();
   assert.equal(health.ok, true);
-  assert.equal(health.stats.artifacts, 4);
+  assert.equal(health.stats.artifacts, 5);
 
   const listResponse = await fetch(`${baseUrl}/api/local/document-artifacts?limit=200`);
   assert.equal(listResponse.status, 200);
   const page = await listResponse.json();
-  assert.equal(page.total, 4);
+  assert.equal(page.total, 5);
   assert.ok(page.items.every((item) => typeof item.locator === "string" && item.locator.length > 0));
+
+  const createLibraryResponse = await fetch(`${baseUrl}/api/local/document-libraries`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "团队文档",
+      logoDataUrl: null,
+      matchType: "domain",
+      domainContains: "example.com",
+      matchMode: "all",
+      rules: [],
+    }),
+  });
+  assert.equal(createLibraryResponse.status, 201);
+  const createdLibrary = (await createLibraryResponse.json()).library;
+
+  const extensionLibraryResponse = await fetch(
+    `${baseUrl}/api/local/document-libraries/${encodeURIComponent(createdLibrary.id)}`,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "图片文件",
+        logoDataUrl: null,
+        matchType: "extension",
+        domainContains: "",
+        extensions: [".PNG", "png"],
+        matchMode: "all",
+        rules: [],
+      }),
+    },
+  );
+  assert.equal(extensionLibraryResponse.status, 200);
+  assert.deepEqual((await extensionLibraryResponse.json()).library.extensions, ["png"]);
+  const extensionPage = await fetch(
+    `${baseUrl}/api/local/document-artifacts?libraryId=${encodeURIComponent(createdLibrary.id)}&limit=200`,
+  ).then((response) => response.json());
+  assert.deepEqual(extensionPage.items.map((item) => item.locator), [fixture.imagePath]);
+
+  const updateLibraryResponse = await fetch(
+    `${baseUrl}/api/local/document-libraries/${encodeURIComponent(createdLibrary.id)}`,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "团队知识库",
+        logoDataUrl: null,
+        matchType: "rules",
+        domainContains: "",
+        extensions: [],
+        matchMode: "all",
+        rules: [{ field: "title", operator: "contains", value: "手册" }],
+      }),
+    },
+  );
+  assert.equal(updateLibraryResponse.status, 200);
+  assert.equal((await updateLibraryResponse.json()).library.name, "团队知识库");
+
+  const deleteLibraryResponse = await fetch(
+    `${baseUrl}/api/local/document-libraries/${encodeURIComponent(createdLibrary.id)}`,
+    {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    },
+  );
+  assert.equal(deleteLibraryResponse.status, 204);
+  assert.ok(!app.documentArtifacts.listLibraries().some((library) => library.id === createdLibrary.id));
 
   const rootResponse = await fetch(`${baseUrl}/`);
   assert.equal(rootResponse.status, 200);

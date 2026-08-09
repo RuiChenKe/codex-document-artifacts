@@ -1,0 +1,195 @@
+#!/usr/bin/env node
+
+import { spawn, spawnSync } from "node:child_process";
+import { access, mkdir, open, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const skillDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const configuredProjectRoot = await readFile(path.join(skillDirectory, "project-root.txt"), "utf8")
+  .then((value) => value.trim())
+  .catch(() => "");
+const projectRoot = process.env.DOCUMENT_ARTIFACTS_DIR
+  ? path.resolve(process.env.DOCUMENT_ARTIFACTS_DIR)
+  : configuredProjectRoot
+    ? path.resolve(configuredProjectRoot)
+    : path.resolve(skillDirectory, "../..");
+const launcherPath = path.join(projectRoot, "scripts", "launcher.mjs");
+const dataDirectory = path.join(projectRoot, ".data");
+const outputDirectory = path.join(projectRoot, "output");
+const pidPath = path.join(dataDirectory, "restore-document-sidebar.pid");
+const logPath = path.join(outputDirectory, "restore-document-sidebar.log");
+const portArgument = process.argv.indexOf("--port");
+const port = Number(portArgument >= 0 ? process.argv[portArgument + 1] : 9232);
+const documentsPort = Number(process.env.DOCUMENT_ARTIFACTS_PORT || 47_824);
+const cdpOrigin = `http://127.0.0.1:${port}`;
+const healthUrl = `http://127.0.0.1:${documentsPort}/health`;
+
+if (!Number.isInteger(port) || port < 1024 || port > 65_535) throw new Error("Invalid --port");
+if (!Number.isInteger(documentsPort) || documentsPort < 1 || documentsPort > 65_535) {
+  throw new Error("Invalid DOCUMENT_ARTIFACTS_PORT");
+}
+
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function reachable(url) {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(1_000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function waitFor(check, timeoutMs, message) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const result = await check();
+      if (result) return result;
+    } catch {}
+    await delay(250);
+  }
+  throw new Error(message);
+}
+
+async function mainTarget() {
+  const response = await fetch(`${cdpOrigin}/json/list`, { signal: AbortSignal.timeout(1_000) });
+  const targets = await response.json();
+  return targets.find((target) => {
+    if (target.type !== "page" || !target.webSocketDebuggerUrl) return false;
+    try {
+      const url = new URL(target.url);
+      return url.protocol === "app:" && !url.searchParams.has("initialRoute");
+    } catch {
+      return false;
+    }
+  });
+}
+
+async function evaluate(target, expression) {
+  const socket = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((resolve, reject) => {
+    socket.addEventListener("open", resolve, { once: true });
+    socket.addEventListener("error", reject, { once: true });
+  });
+  try {
+    const id = 1;
+    const response = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("CDP evaluation timed out")), 5_000);
+      socket.addEventListener("message", (event) => {
+        const message = JSON.parse(String(event.data));
+        if (message.id !== id) return;
+        clearTimeout(timer);
+        if (message.error || message.result?.exceptionDetails) reject(new Error("CDP evaluation failed"));
+        else resolve(message.result?.result?.value);
+      });
+    });
+    socket.send(JSON.stringify({
+      id,
+      method: "Runtime.evaluate",
+      params: { expression, awaitPromise: true, returnByValue: true },
+    }));
+    return await response;
+  } finally {
+    socket.close();
+  }
+}
+
+function processIsAlive(pid) {
+  if (!Number.isInteger(pid) || pid < 1) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function currentResidentPid() {
+  try {
+    const pid = Number((await readFile(pidPath, "utf8")).trim());
+    return processIsAlive(pid) ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureCdpWindow() {
+  if (await reachable(`${cdpOrigin}/json/version`)) return false;
+  if (process.platform !== "darwin") {
+    throw new Error("Codex sidebar recovery currently requires macOS");
+  }
+  const appPath = "/Applications/ChatGPT.app";
+  await access(appPath);
+  const profilePath = path.join(os.tmpdir(), `codex-document-artifacts-${port}`);
+  await mkdir(profilePath, { recursive: true });
+  const launched = spawnSync("/usr/bin/open", [
+    "-n", "-a", appPath, "--args",
+    `--remote-debugging-port=${port}`,
+    "--remote-debugging-address=127.0.0.1",
+    `--remote-allow-origins=${cdpOrigin}`,
+    `--user-data-dir=${profilePath}`,
+  ], { encoding: "utf8" });
+  if (launched.status !== 0) throw new Error(launched.stderr || "Could not open Codex");
+  await waitFor(
+    () => reachable(`${cdpOrigin}/json/version`),
+    30_000,
+    "Codex recovery window did not expose its local debug port",
+  );
+  return true;
+}
+
+async function startResident() {
+  const existing = await currentResidentPid();
+  if (existing) return existing;
+  await mkdir(dataDirectory, { recursive: true });
+  await mkdir(outputDirectory, { recursive: true });
+  const log = await open(logPath, "a", 0o600);
+  const child = spawn(process.execPath, [launcherPath, "--no-launch", "--open", "--port", String(port)], {
+    cwd: projectRoot,
+    detached: true,
+    env: { ...process.env, DOCUMENT_ARTIFACTS_PORT: String(documentsPort) },
+    stdio: ["ignore", log.fd, log.fd],
+  });
+  child.unref();
+  await writeFile(pidPath, `${child.pid}\n`, { mode: 0o600 });
+  await log.close();
+  return child.pid;
+}
+
+await access(launcherPath);
+const launchedDedicatedWindow = await ensureCdpWindow();
+const residentPid = await startResident();
+
+const restored = await waitFor(async () => {
+  if (!(await reachable(healthUrl))) return null;
+  const target = await mainTarget();
+  if (!target) return null;
+  const state = await evaluate(target, `({
+    documentsEntry: Boolean(document.getElementById("codex-documents-entry")),
+    frameUrl: document.getElementById("codex-documents-frame")?.src || null
+  })`);
+  if (!state?.documentsEntry) return null;
+  await evaluate(target, `document.getElementById("codex-documents-entry")?.click()`);
+  await delay(800);
+  const frameUrl = await evaluate(target, `document.getElementById("codex-documents-frame")?.src || null`);
+  return frameUrl ? { target, frameUrl } : null;
+}, 30_000, "Document sidebar recovery did not become healthy").catch(async (error) => {
+  const log = await readFile(logPath, "utf8").catch(() => "");
+  const tail = log.trim().split("\n").slice(-8).join("\n");
+  throw new Error(`${error.message}${tail ? `\n${tail}` : ""}`);
+});
+
+const result = {
+  ok: true,
+  launchedDedicatedWindow,
+  serviceHealthy: await reachable(healthUrl),
+  documentsEntry: true,
+  documentsClickLoaded: new URL(restored.frameUrl).origin === `http://127.0.0.1:${documentsPort}`,
+  residentPid,
+  logPath,
+};
+console.log(JSON.stringify(result, null, 2));
+if (!result.serviceHealthy || !result.documentsClickLoaded) process.exitCode = 1;

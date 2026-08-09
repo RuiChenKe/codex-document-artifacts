@@ -30,5 +30,11 @@ npm run build || installation_failed
 echo "\n3/3 检查本机 Codex 环境…"
 npm run doctor || true
 
-echo "\n安装完成。以后双击 start.command 即可启动。"
+codex_skills_dir="${CODEX_HOME:-${HOME}/.codex}/skills"
+document_skill_dir="${codex_skills_dir}/restore-document-sidebar"
+/bin/mkdir -p "${document_skill_dir}"
+/usr/bin/ditto "skills/restore-document-sidebar" "${document_skill_dir}"
+/usr/bin/printf '%s\n' "${PWD}" > "${document_skill_dir}/project-root.txt"
+
+echo "\n安装完成。以后双击 start.command 即可启动；也可以让 Codex 使用“恢复文档侧边栏”技能自动恢复。"
 read "?按回车键关闭窗口…"
