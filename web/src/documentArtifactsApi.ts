@@ -1,4 +1,4 @@
-export type DocumentCategory = "feishu" | "wecom" | "office" | "markdown" | "memory";
+export type DocumentCategory = "feishu" | "wecom" | "office" | "markdown" | "file" | "memory";
 export type OfficeType = "word" | "excel" | "powerpoint" | null;
 export type SnapshotStatus = "available" | "unavailable_historical" | "missing" | "platform_history";
 
@@ -63,8 +63,9 @@ export interface DocumentLibrary {
   kind: "builtin" | "custom";
   icon?: string;
   logoDataUrl?: string | null;
-  matchType?: "domain" | "rules";
+  matchType?: "domain" | "rules" | "extension";
   domainContains?: string;
+  extensions?: string[];
   matchMode?: "all" | "any";
   rules?: DocumentLibraryRule[];
 }
@@ -72,8 +73,9 @@ export interface DocumentLibrary {
 export interface CreateDocumentLibraryInput {
   name: string;
   logoDataUrl: string | null;
-  matchType: "domain" | "rules";
+  matchType: "domain" | "rules" | "extension";
   domainContains: string;
+  extensions: string[];
   matchMode: "all" | "any";
   rules: DocumentLibraryRule[];
 }
@@ -202,6 +204,27 @@ export async function createDocumentLibrary(input: CreateDocumentLibraryInput): 
     body: JSON.stringify(input),
   });
   return payload.library;
+}
+
+export async function updateDocumentLibrary(
+  id: string,
+  input: CreateDocumentLibraryInput,
+): Promise<DocumentLibrary> {
+  const payload = await request<{ library: DocumentLibrary }>(
+    `/api/local/document-libraries/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+    },
+  );
+  return payload.library;
+}
+
+export async function deleteDocumentLibrary(id: string): Promise<void> {
+  await request(`/api/local/document-libraries/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    body: "{}",
+  });
 }
 
 export async function reorderDocumentLibraries(ids: string[]): Promise<DocumentLibrary[]> {

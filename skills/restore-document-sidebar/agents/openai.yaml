@@ -1,0 +1,4 @@
+interface:
+  display_name: "恢复文档侧边栏"
+  short_description: "恢复并验证 Codex 文档产物侧边栏入口和本机服务"
+  default_prompt: "使用 $restore-document-sidebar 恢复文档产物侧边栏，并核验入口和本机服务。"
