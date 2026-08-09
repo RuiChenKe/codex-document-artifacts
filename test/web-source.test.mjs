@@ -39,3 +39,15 @@ test("custom document libraries expose edit and delete controls", async () => {
   assert.match(apiSource, /method: "PUT"/u);
   assert.match(apiSource, /method: "DELETE"/u);
 });
+
+test("the Bilibili edition includes company platforms and removes the long-term module", async () => {
+  const appSource = await readFile(path.join(root, "web/src/DocumentArtifactsApp.tsx"), "utf8");
+  const apiSource = await readFile(path.join(root, "web/src/documentArtifactsApi.ts"), "utf8");
+  const serverSource = await readFile(path.join(root, "server/app.mjs"), "utf8");
+  const cliSource = await readFile(path.join(root, "server/index.mjs"), "utf8");
+  assert.match(appSource, /id: "zhiliao", name: "知了文档"/u);
+  assert.doesNotMatch(appSource, /long_term|getLongTermMarkdownDocument|openLongTermDocument/u);
+  assert.doesNotMatch(apiSource, /long-term-documents|long_term/u);
+  assert.doesNotMatch(serverSource, /api\/local\/long-term-documents/u);
+  assert.doesNotMatch(cliSource, /include-long-term/u);
+});

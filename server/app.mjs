@@ -330,9 +330,6 @@ export function resolvePort(value = process.env.DOCUMENT_ARTIFACTS_PORT ?? proce
 
 export function resolveServerOptions(options = {}) {
   const codexHome = path.resolve(options.codexHome ?? process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"));
-  const includeLongTerm = options.includeLongTerm === undefined
-    ? booleanEnvironmentValue("DOCUMENT_ARTIFACTS_INCLUDE_LONG_TERM", "CODEX_DOCUMENT_ARTIFACTS_INCLUDE_LONG_TERM")
-    : options.includeLongTerm === true;
   const enableSnapshots = options.enableSnapshots === undefined
     ? booleanEnvironmentValue("DOCUMENT_ARTIFACTS_ENABLE_SNAPSHOTS", "CODEX_DOCUMENT_ARTIFACTS_ENABLE_SNAPSHOTS")
     : options.enableSnapshots === true;
@@ -350,7 +347,7 @@ export function resolveServerOptions(options = {}) {
     automationsDirectory: path.resolve(options.automationsDirectory ?? path.join(codexHome, "automations")),
     staticDirectory: path.resolve(options.staticDirectory ?? path.join(PROJECT_ROOT, "dist", "web")),
     historyDays: options.historyDays ?? null,
-    includeLongTerm,
+    includeLongTerm: false,
     enableSnapshots,
     platformTitleResolver: options.platformTitleResolver ?? null,
     openTarget: options.openTarget ?? defaultOpenTarget,
@@ -481,8 +478,7 @@ export function createDocumentArtifactsServer(options = {}) {
           "startDate", "endDate", "cursor", "limit",
         ]), "GET /api/local/document-artifacts");
         const allowedCategories = new Set([
-          "all", "feishu", "wecom", "office", "markdown",
-          ...(resolved.includeLongTerm ? ["long_term"] : []),
+          "all", "feishu", "zhiliao", "wecom", "office", "markdown", "file",
         ]);
         const category = url.searchParams.get("category") ?? "all";
         if (!allowedCategories.has(category)) {
@@ -548,28 +544,6 @@ export function createDocumentArtifactsServer(options = {}) {
         if (target.error) {
           throw new ApiError(409, target.error, "This historical version is unavailable");
         }
-        await resolved.openTarget(target.target);
-        return sendJson(response, 200, { opened: true });
-      }
-
-      const longTermRoute = pathname.match(/^\/api\/local\/long-term-documents\/([^/]+)$/u);
-      if (longTermRoute) {
-        if (request.method !== "GET") return methodNotAllowed(response, ["GET"]);
-        assertNoQuery(url.searchParams, "GET /api/local/long-term-documents/:id");
-        const document = documentArtifacts.readLongTermDocument(decodeId(longTermRoute[1], "Long-term document id"));
-        if (!document) throw new ApiError(404, "LONG_TERM_DOCUMENT_NOT_FOUND", "Long-term document was not found");
-        return sendJson(response, 200, { document });
-      }
-
-      const longTermOpenRoute = pathname.match(/^\/api\/local\/long-term-documents\/([^/]+)\/open$/u);
-      if (longTermOpenRoute) {
-        if (request.method !== "POST") return methodNotAllowed(response, ["POST"]);
-        assertNoQuery(url.searchParams, "POST /api/local/long-term-documents/:id/open");
-        const body = await readJson(request);
-        assertPlainObject(body);
-        assertAllowedKeys(body, new Set());
-        const target = documentArtifacts.resolveLongTermOpenTarget(decodeId(longTermOpenRoute[1], "Long-term document id"));
-        if (!target) throw new ApiError(404, "LONG_TERM_DOCUMENT_NOT_FOUND", "Long-term document was not found");
         await resolved.openTarget(target.target);
         return sendJson(response, 200, { opened: true });
       }

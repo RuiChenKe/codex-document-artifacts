@@ -63,6 +63,7 @@ async function createCodexFixture() {
     rolloutMessage(oldTimestamp, "assistant", [
       "已完成：",
       "[季度复盘](https://example.feishu.cn/docx/old-token)",
+      "[知了方案](https://aistudio.bilibili.co/doc/zhiliao-token)",
       "[企微方案](https://doc.weixin.qq.com/doc/wecom-token)",
       "[无关网页](https://internal.example/doc/internal-token)",
       `[本地说明](${markdownPath})`,
@@ -184,10 +185,11 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
   }
 
   const firstPage = store.list({ limit: 200 });
-  assert.equal(firstPage.total, 5);
+  assert.equal(firstPage.total, 6);
   const locators = new Set(firstPage.items.map((item) => item.locator));
   assert.deepEqual(locators, new Set([
     "https://example.feishu.cn/docx/old-token",
+    "https://aistudio.bilibili.co/doc/zhiliao-token",
     "https://doc.weixin.qq.com/doc/wecom-token",
     fixture.markdownPath,
     fixture.officePath,
@@ -204,7 +206,7 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
   assert.equal(office?.versions[0].openable, true);
   assert.deepEqual(
     store.listLibraries().map((library) => library.id),
-    ["feishu", "wecom", "office", "markdown"],
+    ["feishu", "zhiliao", "wecom", "office", "markdown"],
   );
   assert.equal(store.list({ category: "long_term" }).total, 0);
   await store.stop();
@@ -230,12 +232,12 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
   assert.equal(pendingUpgradeState.byte_offset, 0);
   const upgradeScan = await store.scanNow();
   assert.equal(upgradeScan.scannedThreads, 1);
-  assert.equal(store.list({ limit: 200 }).total, 6, "scanner v4 升级应重置旧 offset 并完整重扫");
+  assert.equal(store.list({ limit: 200 }).total, 7, "scanner v5 升级应重置旧 offset 并完整重扫");
   assert.equal(store.list({ query: "后续补充" }).items[0]?.locator, fixture.laterMarkdownPath);
   const scanState = store.database.prepare(`
     SELECT scanner_version, byte_offset FROM document_scan_state
   `).get();
-  assert.equal(scanState.scanner_version, 4);
+  assert.equal(scanState.scanner_version, 5);
   assert.ok(scanState.byte_offset > 0);
   await store.stop();
 
@@ -243,9 +245,7 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
     includeLongTerm: true,
   }));
   await store.start();
-  assert.ok(store.listLibraries().some((library) => library.id === "long_term"));
-  const longTermDocument = store.list({ category: "long_term" }).items[0];
-  assert.equal(longTermDocument?.category, "memory");
+  assert.ok(!store.listLibraries().some((library) => library.id === "long_term"));
   await store.stop();
 });
 
@@ -265,12 +265,12 @@ test("独立 HTTP 服务提供健康检查、列表和静态页面，并拒绝�
   assert.equal(healthResponse.status, 200);
   const health = await healthResponse.json();
   assert.equal(health.ok, true);
-  assert.equal(health.stats.artifacts, 5);
+  assert.equal(health.stats.artifacts, 6);
 
   const listResponse = await fetch(`${baseUrl}/api/local/document-artifacts?limit=200`);
   assert.equal(listResponse.status, 200);
   const page = await listResponse.json();
-  assert.equal(page.total, 5);
+  assert.equal(page.total, 6);
   assert.ok(page.items.every((item) => typeof item.locator === "string" && item.locator.length > 0));
 
   const createLibraryResponse = await fetch(`${baseUrl}/api/local/document-libraries`, {
@@ -419,7 +419,7 @@ test("Office 快照只有显式启用后才会创建", async (t) => {
   assert.equal((await stat(openTarget.target)).mode & 0o777, 0o600);
 });
 
-test("公开环境变量只能显式开启隐私敏感功能", async (t) => {
+test("公司专供版永久关闭长期文档，快照仍需显式开启", async (t) => {
   const fixture = await createCodexFixture();
   t.after(() => rm(fixture.root, { recursive: true, force: true }));
   const names = [
@@ -443,7 +443,7 @@ test("公开环境变量只能显式开启隐私敏感功能", async (t) => {
   const resolved = resolveServerOptions({ codexHome: fixture.codexHome });
   assert.equal(resolvePort(), 48_123);
   assert.equal(resolved.dataDirectory, path.join(fixture.root, "configured-data"));
-  assert.equal(resolved.includeLongTerm, true);
+  assert.equal(resolved.includeLongTerm, false);
   assert.equal(resolved.enableSnapshots, true);
 
   const explicitlyDisabled = resolveServerOptions({

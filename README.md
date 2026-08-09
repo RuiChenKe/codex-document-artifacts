@@ -1,5 +1,7 @@
 # Codex 文档产物
 
+> **哔哩哔哩公司专供版 v1**：内置飞书、知了、企业微信等公司常用文档平台模块，并移除长期文档模块。本分支不包含账号、令牌或公司文档数据；在线文档仍需使用者本人具备相应权限。
+
 > [!IMPORTANT]
 > **“文档产物”侧边栏入口目前仅支持 macOS 版 Codex。** Windows 和 Linux 可以使用完整的本地网页模式，但不会在 Codex 侧边栏中出现入口。
 
@@ -9,7 +11,7 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 
 ![文档产物界面](docs/screenshot.png)
 
-当前版本：[`v0.2.0`](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.2.0)（公开预览版）
+当前版本：[`bilibili-v1.0.0`](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/bilibili-v1.0.0)（哔哩哔哩公司专供版 v1）
 
 ## 它能帮你做什么
 
@@ -17,7 +19,7 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 
 - 默认扫描本机仍保留的全部历史，页面初始筛选为“全部时间”。
 - 按项目、关键词、文档类型和时间查找。
-- 识别受支持的飞书/Lark、企业微信文档链接，以及 Word、Excel、PowerPoint、Markdown、PNG/JPG/JPEG 图片和 HTML 文件。
+- 识别受支持的飞书/Lark、知了、企业微信文档链接，以及 Word、Excel、PowerPoint、Markdown、PNG/JPG/JPEG 图片和 HTML 文件。
 - 显示文档来自哪个 Codex 项目和任务，并可返回相关任务。
 - 折叠展示同一文档的多次交付或可用版本。
 - 点击“复制链接🔗”，把在线地址或本地文件路径复制到剪贴板。
@@ -32,7 +34,7 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 
 - 服务只监听 `127.0.0.1`，也就是只有这台电脑能访问。
 - 默认不会上传、同步或分享你的文档，也没有遥测或使用情况上报。
-- 长期记忆读取和 Office 文件快照默认关闭。
+- 不读取 Codex 长期记忆；Office 文件快照默认关闭。
 - 索引、文档路径、链接和自定义分类都保存在本机。
 - 在线链接只有在你主动点击“打开”时，才会由浏览器访问原网站。
 
@@ -53,7 +55,7 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 ### 第 2 步：下载并安装
 
 1. 打开 [Releases 下载页](https://github.com/RuiChenKe/codex-document-artifacts/releases/latest)。
-2. 在该版本的 **Assets** 区域下载 [`codex-document-artifacts-v0.2.0-macos.zip`](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/v0.2.0/codex-document-artifacts-v0.2.0-macos.zip)。编程小白不要下载 GitHub 自动生成的 “Source code” 压缩包。
+2. 在该版本的 **Assets** 区域下载 [`codex-document-artifacts-bilibili-v1-macos.zip`](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/bilibili-v1.0.0/codex-document-artifacts-bilibili-v1-macos.zip)。编程小白不要下载 GitHub 自动生成的 “Source code” 压缩包。
 3. 双击 ZIP 解压，再双击文件夹里的 `install.command`。
 4. 等窗口显示“安装完成”。第一次安装需要联网下载开源依赖，可能要几分钟。
 
@@ -125,17 +127,10 @@ Windows 和 Linux 用户仍可完整使用网页模式；只是需要通过终�
 
 普通用户可以跳过这一节，默认设置已经能完成文档检索、打开和复制链接。
 
-项目根目录中的 `.env.example` 列出了可选设置。当前版本不会自动读取 `.env` 文件；需要启用时，请在项目文件夹的终端中把设置写在启动命令前。例如，只启用长期文档：
-
-```bash
-DOCUMENT_ARTIFACTS_INCLUDE_LONG_TERM=1 npm start
-```
-
-macOS 嵌入模式则把末尾的 `npm start` 换成 `npm run codex`。一次可以填写多个设置；没有写出的设置仍保持关闭。
+项目根目录中的 `.env.example` 列出了可选设置。当前版本不会自动读取 `.env` 文件；需要启用时，请在项目文件夹的终端中把设置写在启动命令前。macOS 嵌入模式则把末尾的 `npm start` 换成 `npm run codex`。
 
 | 设置 | 默认值 | 作用与风险 |
 | --- | --- | --- |
-| `DOCUMENT_ARTIFACTS_INCLUDE_LONG_TERM` | `0` | 增加长期文档视图，会扩大本机读取范围 |
 | `DOCUMENT_ARTIFACTS_ENABLE_SNAPSHOTS` | `0` | 在本机保存 Office 文件副本，会增加敏感数据和磁盘占用 |
 
 `DOCUMENT_ARTIFACTS_PORT` 的默认值是 `47824`。如果改了端口，请把本说明中的健康检查和网页地址也换成相同端口。服务地址固定为 `127.0.0.1`，不能通过设置改成局域网或公网地址。设置只对这一次启动有效，修改时请先停止服务，再用新的命令启动。
@@ -144,9 +139,10 @@ macOS 嵌入模式则把末尾的 `npm start` 换成 `npm run codex`。一次可
 
 ### 会被收录
 
-- Codex 最终回复中受支持的飞书/Lark、企业微信在线文档链接。
+- Codex 最终回复中受支持的飞书/Lark、知了、企业微信在线文档链接。
 - Codex 最终回复中明确交付的 Word、Excel、PowerPoint 文件路径。
 - Codex 最终回复中明确交付的 `.md` 或 `.markdown` 文件路径。
+- Codex 最终回复中明确交付的 PNG、JPG/JPEG 或 HTML 文件路径。
 - 本机仍保留的全部历史任务。
 
 ### 不会被自动收录

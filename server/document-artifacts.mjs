@@ -13,7 +13,7 @@ const MAX_JSON_LINE_BYTES = 8 * 1024 * 1024;
 const PLATFORM_TITLE_SUCCESS_TTL_MS = 24 * 60 * 60 * 1000;
 const PLATFORM_TITLE_FAILURE_TTL_MS = 60 * 60 * 1000;
 const PLATFORM_TITLE_RESOLVER_VERSION = 2;
-const DOCUMENT_SCANNER_VERSION = 4;
+const DOCUMENT_SCANNER_VERSION = 5;
 const LONG_TERM_SOURCE_MAX_BYTES = 2 * 1024 * 1024;
 const IMPORTANT_MEMORY_FILES = ["memory_summary.md", "MEMORY.md", "raw_memories.md"];
 
@@ -31,6 +31,7 @@ const GENERIC_DOCUMENT_TITLE = /^(?:打开|查看|链接|文档|文件|下载|�
 const LONG_TERM_COLLECTION_TITLE = /(?:清单|存档|合集|身份库|知识库|资料库|数据库|台账|档案库)/u;
 const BUILTIN_DOCUMENT_LIBRARIES = [
   { id: "feishu", name: "飞书文档", kind: "builtin" },
+  { id: "zhiliao", name: "知了文档", kind: "builtin" },
   { id: "wecom", name: "企业微信文档", kind: "builtin" },
   { id: "office", name: "Office 文档", kind: "builtin" },
   { id: "markdown", name: "MD 文档", kind: "builtin" },
@@ -223,6 +224,9 @@ function classifyOnlineUrl(value) {
   ) {
     return { category: "feishu", officeType: null, canonical };
   }
+  if (hostname === "aistudio.bilibili.co") {
+    return { category: "zhiliao", officeType: null, canonical };
+  }
   if (hostname === "doc.weixin.qq.com" && WECOM_PATHS.has(firstPath)) {
     return { category: "wecom", officeType: null, canonical };
   }
@@ -291,7 +295,7 @@ function extractCandidates(text) {
       ...classified,
       locator: classified.canonical,
       title: displayTitle(label, classified.canonical),
-      needsPlatformTitle: ["feishu", "wecom"].includes(classified.category),
+      needsPlatformTitle: ["feishu", "zhiliao", "wecom"].includes(classified.category),
       deliveryContext: deliveryContext(text, matchStart, matchStart + matchLength),
     });
   };
@@ -390,7 +394,7 @@ export class DocumentArtifactStore {
     this.memoryDirectory = memoryDirectory ?? path.join(codexHome, "memories");
     this.automationsDirectory = automationsDirectory ?? path.join(codexHome, "automations");
     this.historyDays = historyDays;
-    this.includeLongTerm = includeLongTerm === true;
+    this.includeLongTerm = false;
     this.enableSnapshots = enableSnapshots === true;
     this.platformTitleResolver = platformTitleResolver;
     this.onChange = onChange;
@@ -419,7 +423,7 @@ export class DocumentArtifactStore {
       CREATE TABLE IF NOT EXISTS document_artifacts (
         id TEXT PRIMARY KEY,
         logical_key TEXT NOT NULL UNIQUE,
-        category TEXT NOT NULL CHECK (category IN ('feishu', 'wecom', 'office', 'markdown', 'file')),
+        category TEXT NOT NULL CHECK (category IN ('feishu', 'zhiliao', 'wecom', 'office', 'markdown', 'file')),
         office_type TEXT CHECK (office_type IS NULL OR office_type IN ('word', 'excel', 'powerpoint')),
         title TEXT NOT NULL,
         latest_locator TEXT NOT NULL,
@@ -554,7 +558,7 @@ export class DocumentArtifactStore {
     const artifactSchema = this.database.prepare(`
       SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'document_artifacts'
     `).get()?.sql ?? "";
-    if (!artifactSchema.includes("'markdown'") || !artifactSchema.includes("'file'")) {
+    if (!artifactSchema.includes("'markdown'") || !artifactSchema.includes("'file'") || !artifactSchema.includes("'zhiliao'")) {
       this.database.exec(`
         PRAGMA foreign_keys = OFF;
         BEGIN IMMEDIATE;
@@ -564,7 +568,7 @@ export class DocumentArtifactStore {
         CREATE TABLE document_artifacts (
           id TEXT PRIMARY KEY,
           logical_key TEXT NOT NULL UNIQUE,
-          category TEXT NOT NULL CHECK (category IN ('feishu', 'wecom', 'office', 'markdown', 'file')),
+          category TEXT NOT NULL CHECK (category IN ('feishu', 'zhiliao', 'wecom', 'office', 'markdown', 'file')),
           office_type TEXT CHECK (office_type IS NULL OR office_type IN ('word', 'excel', 'powerpoint')),
           title TEXT NOT NULL,
           latest_locator TEXT NOT NULL,
@@ -840,7 +844,7 @@ export class DocumentArtifactStore {
   async #withPlatformTitle(candidate) {
     if (
       typeof this.platformTitleResolver !== "function"
-      || !["feishu", "wecom"].includes(candidate.category)
+      || !["feishu", "zhiliao", "wecom"].includes(candidate.category)
       || !candidate.needsPlatformTitle
     ) {
       return candidate;
@@ -864,7 +868,7 @@ export class DocumentArtifactStore {
     const artifacts = this.database.prepare(`
       SELECT id, title, latest_locator
       FROM document_artifacts
-      WHERE category IN ('feishu', 'wecom')
+      WHERE category IN ('feishu', 'zhiliao', 'wecom')
       ORDER BY latest_delivered_at DESC, id
     `).all();
     let checked = 0;

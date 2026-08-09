@@ -1,7 +1,7 @@
 {
   "name": "codex-document-artifacts",
-  "version": "0.2.0",
-  "description": "A local document library for files and links delivered by Codex.",
+  "version": "1.0.0-bilibili.1",
+  "description": "Bilibili company edition of the local Codex document artifact library.",
   "type": "module",
   "license": "MIT",
   "engines": {

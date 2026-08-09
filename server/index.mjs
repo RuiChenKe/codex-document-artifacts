@@ -15,7 +15,6 @@ function usage() {
     "  --port <端口>           本机端口（默认 47824）",
     "  --codex-home <目录>     Codex 数据目录（默认 ~/.codex）",
     "  --data-dir <目录>       本模块的数据目录",
-    "  --include-long-term     同时读取长期记忆和定期任务（默认关闭）",
     "  --enable-snapshots      保存 Office 文件快照（默认关闭）",
     "  --dev                   开发模式（由 npm run dev 使用）",
     "  -h, --help              显示帮助",
@@ -30,10 +29,6 @@ function parseArguments(argv) {
     const argument = argv[index];
     if (argument === "-h" || argument === "--help") {
       result.help = true;
-      continue;
-    }
-    if (argument === "--include-long-term") {
-      result.includeLongTerm = true;
       continue;
     }
     if (argument === "--enable-snapshots") {

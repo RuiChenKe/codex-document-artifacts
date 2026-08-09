@@ -1,4 +1,4 @@
-export type DocumentCategory = "feishu" | "wecom" | "office" | "markdown" | "file" | "memory";
+export type DocumentCategory = "feishu" | "zhiliao" | "wecom" | "office" | "markdown" | "file" | "memory";
 export type OfficeType = "word" | "excel" | "powerpoint" | null;
 export type SnapshotStatus = "available" | "unavailable_historical" | "missing" | "platform_history";
 
@@ -38,11 +38,6 @@ export interface DocumentArtifact {
   tags: DocumentTag[];
   versions: DocumentVersion[];
   versionCount: number;
-  longTerm?: {
-    id: string;
-    kind: "memory" | "automation";
-    automationNames?: string[];
-  };
 }
 
 export type DocumentLibraryRuleField = "title" | "body" | "updatedAt" | "createdAt" | "fileSize";
@@ -167,7 +162,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export async function listDocumentArtifacts(input: {
-  category: "all" | "long_term" | Exclude<DocumentCategory, "memory">;
+  category: "all" | Exclude<DocumentCategory, "memory">;
   libraryId?: string;
   projectId: string;
   search: string;
@@ -249,23 +244,9 @@ export async function openDocumentArtifact(artifactId: string, versionId?: strin
   });
 }
 
-export async function getLongTermMarkdownDocument(id: string): Promise<LongTermMarkdownDocument> {
-  const payload = await request<{ document: LongTermMarkdownDocument }>(
-    `/api/local/long-term-documents/${encodeURIComponent(id)}`,
-  );
-  return payload.document;
-}
-
 export async function getMarkdownArtifactDocument(id: string): Promise<LongTermMarkdownDocument> {
   const payload = await request<{ document: LongTermMarkdownDocument }>(
     `/api/local/document-artifacts/${encodeURIComponent(id)}/content`,
   );
   return payload.document;
-}
-
-export async function openLongTermDocument(id: string): Promise<void> {
-  await request(`/api/local/long-term-documents/${encodeURIComponent(id)}/open`, {
-    method: "POST",
-    body: "{}",
-  });
 }

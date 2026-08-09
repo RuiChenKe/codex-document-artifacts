@@ -20,12 +20,10 @@ import { CustomDocumentLibraryDialog } from "./components/CustomDocumentLibraryD
 import {
   createDocumentLibrary,
   deleteDocumentLibrary,
-  getLongTermMarkdownDocument,
   getMarkdownArtifactDocument,
   listDocumentLibraries,
   listDocumentArtifacts,
   openDocumentArtifact,
-  openLongTermDocument,
   reorderDocumentLibraries,
   rescanDocumentArtifacts,
   updateDocumentLibrary,
@@ -56,15 +54,17 @@ interface HostContext {
 
 const DEFAULT_DOCUMENT_LIBRARIES: DocumentLibrary[] = [
   { id: "feishu", name: "飞书文档", kind: "builtin" },
+  { id: "zhiliao", name: "知了文档", kind: "builtin" },
   { id: "wecom", name: "企业微信文档", kind: "builtin" },
   { id: "office", name: "Office 文档", kind: "builtin" },
   { id: "markdown", name: "MD 文档", kind: "builtin" },
 ];
 
-const BUILTIN_CATEGORY_IDS = new Set(["feishu", "wecom", "office", "markdown", "long_term"]);
+const BUILTIN_CATEGORY_IDS = new Set(["feishu", "zhiliao", "wecom", "office", "markdown"]);
 
 const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   feishu: "飞书",
+  zhiliao: "知了",
   wecom: "企业微信",
   office: "Office",
   markdown: "Markdown",
@@ -151,6 +151,7 @@ function documentGlyph(artifact: DocumentArtifact): string {
   if (artifact.officeType === "excel") return "X";
   if (artifact.officeType === "powerpoint") return "P";
   if (artifact.category === "feishu") return "飞";
+  if (artifact.category === "zhiliao") return "知";
   if (artifact.category === "wecom") return "企";
   if (["memory", "markdown"].includes(artifact.category)) return "M↓";
   if (artifact.category === "file") return "▧";
@@ -177,7 +178,7 @@ function hasHistoricalVersions(artifact: DocumentArtifact): boolean {
 }
 
 function deliveryStatus(artifact: DocumentArtifact, version: DocumentVersion): string {
-  if (["feishu", "wecom"].includes(artifact.category)) {
+  if (["feishu", "zhiliao", "wecom"].includes(artifact.category)) {
     return "仅记录本次交付；打开后显示平台当前内容";
   }
   if (version.snapshotStatus === "missing") return "原文件当前不可用";
@@ -317,7 +318,7 @@ export function DocumentArtifactsApp() {
     try {
       const selectedLibrary = libraries.find((library) => library.id === category);
       const builtinCategory = BUILTIN_CATEGORY_IDS.has(category)
-        ? category as "long_term" | Exclude<DocumentCategory, "memory">
+        ? category as Exclude<DocumentCategory, "memory">
         : "all";
       const page = await listDocumentArtifacts({
         category: builtinCategory,
@@ -404,12 +405,8 @@ export function DocumentArtifactsApp() {
     setOpeningId(key);
     setError(null);
     try {
-      if (artifact.longTerm?.kind === "memory") {
-        setReader(await getLongTermMarkdownDocument(artifact.longTerm.id));
-      } else if (artifact.category === "markdown" && !version) {
+      if (artifact.category === "markdown" && !version) {
         setReader(await getMarkdownArtifactDocument(artifact.id));
-      } else if (artifact.longTerm?.kind === "automation" && !version) {
-        await openLongTermDocument(artifact.longTerm.id);
       } else {
         await openDocumentArtifact(artifact.id, version?.id);
       }
@@ -593,11 +590,9 @@ export function DocumentArtifactsApp() {
             <p>{reader
               ? reader.filename
               : total > 0
-                ? category === "long_term"
-                  ? `共 ${total} 个长期文档`
-                  : activeLibrary?.kind === "custom"
-                    ? `${activeLibrary.name} · 共 ${total} 个产物`
-                    : `共 ${total} 个产物，按 Codex 交付时间排序`
+                ? activeLibrary?.kind === "custom"
+                  ? `${activeLibrary.name} · 共 ${total} 个产物`
+                  : `共 ${total} 个产物，按 Codex 交付时间排序`
                 : "汇总 Codex 交付的文档"}</p>
           </div>
         </div>
