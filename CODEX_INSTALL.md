@@ -8,8 +8,8 @@
 
 ## 版本选择
 
-- 非哔哩哔哩员工：`v0.2.1`，附件 `codex-document-artifacts-v0.2.1-macos.zip`。
-- 哔哩哔哩员工且需要公司文档平台模块：`bilibili-v1.0.1`，附件 `codex-document-artifacts-bilibili-v1-macos.zip`。
+- 非哔哩哔哩员工：`v0.2.2`，附件 `codex-document-artifacts-v0.2.2-macos.zip`。
+- 哔哩哔哩员工且需要公司文档平台模块：`bilibili-v1.0.2`，附件 `codex-document-artifacts-bilibili-v1-macos.zip`。
 - 用户没有说明身份或版本时，先问清楚，不要根据 GitHub 的 `Latest` 标记猜测。
 
 ## 执行要求
@@ -18,7 +18,7 @@
 2. 从 `https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/<tag>` 下载上面指定的 macOS ZIP 和同名 `.sha256` 文件。
 3. 计算 ZIP 的 SHA-256，并与 `.sha256` 文件的第一列严格比较；不一致时停止。
 4. 解压到用户可长期保留的位置。默认使用：
-   - 公开版：`~/Applications/Codex Document Artifacts/public-v0.2.1`
+   - 公开版：`~/Applications/Codex Document Artifacts/public-v0.2.2`
    - 公司版：`~/Applications/Codex Document Artifacts/bilibili-v1`
 5. 在解压后的项目根目录运行：
 
