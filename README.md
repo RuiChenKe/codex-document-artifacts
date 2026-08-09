@@ -11,7 +11,25 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 
 ![文档产物界面](docs/screenshot.png)
 
-当前版本：[`bilibili-v1.0.0`](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/bilibili-v1.0.0)（哔哩哔哩公司专供版 v1）
+当前提供两个版本：普通用户使用[公开通用版 v0.2.1](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.2.1)；哔哩哔哩员工可以使用[哔哩哔哩公司专供版 v1.0.1](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/bilibili-v1.0.1)。第一次安装请严格按下方指引选择，不要只看 GitHub 的绿色 `Latest` 标记。
+
+## 最简单的安装方法：把一句话发给 Codex
+
+如果你正在使用 macOS 版 Codex，可以完全跳过 GitHub 的 Releases、Assets、解压和启动步骤。根据身份复制下面一句话发给 Codex，它会按照仓库中的 [`CODEX_INSTALL.md`](CODEX_INSTALL.md) 自动选择安装包、校验、安装并激活侧边栏。
+
+**非哔哩哔哩员工：**
+
+```text
+帮我安装并激活这个项目的公开通用版“文档产物”侧边栏：https://github.com/RuiChenKe/codex-document-artifacts 。请按照仓库里的 CODEX_INSTALL.md 完成下载、校验、安装和侧边栏验证。
+```
+
+**哔哩哔哩员工：**
+
+```text
+我是哔哩哔哩员工。帮我安装并激活这个项目的公司专供版“文档产物”侧边栏：https://github.com/RuiChenKe/codex-document-artifacts 。请按照仓库里的 CODEX_INSTALL.md 完成下载、校验、安装和侧边栏验证。
+```
+
+Codex 最终明确报告本机服务、侧边栏入口和点击加载都验证成功后，就可以直接使用。只有自动安装失败，才需要继续阅读后面的手动安装教程；极少数无法注入当前 Codex 窗口的环境，Codex 会提示你使用一次 `start.command` 备用启动。
 
 ## 它能帮你做什么
 
@@ -42,47 +60,104 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 
 本项目是独立开源项目，不是 OpenAI、飞书、腾讯或 Microsoft 的官方产品。界面中用于识别文档类型的第三方产品名称与 Logo 归各自权利人所有，仅作兼容性识别；详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-## 小白安装：三步完成
+## 手动安装备用教程：从 GitHub 链接到成功出现侧边栏
 
-下面是最省事的 macOS 安装方式。侧边栏模式需要已经安装 Codex 桌面版；Windows 和 Linux 用户请看后面的“从源码安装”。安装过程只发生在本机。
+这部分专门写给没有用过 GitHub 的用户。你**不需要注册 GitHub 账号，也不需要安装 Git 或学习代码**。侧边栏模式目前只支持 macOS，并且电脑上需要已经安装 Codex 桌面版；Windows 和 Linux 只能使用后面的本地网页模式。
 
-### 第 1 步：准备 Node.js
+### 第 1 步：先判断自己应该下载哪个版本
 
-需要 Node.js `22.5` 或更高版本。不确定有没有安装也没关系：稍后的安装向导会帮你检查。
+| 你的身份 | 应选择的 Release | 应下载的文件 |
+| --- | --- | --- |
+| 不是哔哩哔哩员工 | [公开通用版 v0.2.1](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.2.1) | `codex-document-artifacts-v0.2.1-macos.zip` |
+| 是哔哩哔哩员工，并需要飞书、知了、企业微信等公司文档平台模块 | [哔哩哔哩公司专供版 v1.0.1](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/bilibili-v1.0.1) | `codex-document-artifacts-bilibili-v1-macos.zip` |
 
-如果向导提示“没有找到 Node.js”，请打开 [Node.js 官方下载页](https://nodejs.org/zh-cn/download)，安装 **LTS（长期支持）版本**，完成后再继续。
+两版都包含文档库编辑、删除、按文件格式归类和“恢复文档侧边栏”Skill。公司专供版额外内置公司常用文档平台模块，并移除了长期文档模块。
 
-### 第 2 步：下载并安装
+> [!WARNING]
+> GitHub 的绿色 `Latest` 只表示“最近发布的版本”，不代表它一定适合你。当前 `Latest` 可能显示在公司专供版旁边。请根据上表和 Release 标题选择；非哔哩哔哩员工不要下载公司专供版。
 
-1. 打开 [Releases 下载页](https://github.com/RuiChenKe/codex-document-artifacts/releases/latest)。
-2. 在该版本的 **Assets** 区域下载 [`codex-document-artifacts-bilibili-v1-macos.zip`](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/bilibili-v1.0.0/codex-document-artifacts-bilibili-v1-macos.zip)。编程小白不要下载 GitHub 自动生成的 “Source code” 压缩包。
-3. 双击 ZIP 解压，再双击文件夹里的 `install.command`。
-4. 等窗口显示“安装完成”。第一次安装需要联网下载开源依赖，可能要几分钟。
+### 第 2 步：从仓库首页进入 Releases
 
-如果 macOS 拦截文件，按住 Control 键点击 `install.command`，选择“打开”；仍被拦截时，可到“系统设置 → 隐私与安全性”确认打开。只应下载本仓库正式 Release 提供的文件。
+1. 打开仓库链接：<https://github.com/RuiChenKe/codex-document-artifacts>。
+2. 在仓库首页右侧找到 **Releases** 并点击。若窗口较窄或使用手机，Releases 可能出现在页面较下方。
+3. 也可以直接打开[全部 Releases 页面](https://github.com/RuiChenKe/codex-document-artifacts/releases)。
+4. 根据第 1 步找到“公开通用版 v0.2.1”或“哔哩哔哩公司专供版 v1.0.1”。不要因为某一版带有 `Latest` 就跳过身份判断。
 
-### 第 3 步：启动
+### 第 3 步：在 Assets 中只下载真正的安装包
 
-先在 Codex 菜单中选择“退出 Codex”，或按 `Command-Q`，确保它已经完全退出。然后双击 `start.command`，并保持弹出的终端窗口开启：
+进入对应 Release 后，向下找到并展开 **Assets**。你通常会看到 4 个文件：
 
-- 启动程序会重新打开 Codex，并自动进入侧边栏中的“文档产物”。
-- 如果只想使用普通网页，可以在项目文件夹中运行 `npm start`，再用浏览器访问 `http://127.0.0.1:47824/`。
-- 要停止服务，回到终端窗口按 `Control-C`，或直接关闭该窗口。
-- 安装向导还会安装“恢复文档侧边栏”Skill；以后入口消失时，可以直接让 Codex“恢复文档侧边栏”。
+| Assets 中的文件 | 是否需要下载 | 用途 |
+| --- | --- | --- |
+| `codex-document-artifacts-…-macos.zip` | **是，只下载这个** | 可以直接安装的 macOS 安装包，约 500 KB |
+| `codex-document-artifacts-…-macos.zip.sha256` | 普通用户不用 | 给专业用户核对文件是否完整的校验值，不是安装包 |
+| `Source code (zip)` | 不要 | GitHub 自动生成的源代码包，不能按本教程直接安装 |
+| `Source code (tar.gz)` | 不要 | GitHub 自动生成的另一种源代码包，不能按本教程直接安装 |
 
-以后使用时只需重复第 3 步，不必每天重新安装。
+![Release 的 Assets 下载区域；普通用户只下载第一行 macOS ZIP 安装包](docs/release-assets-guide.png)
 
-### 自动恢复侧边栏
+点击第一行蓝色的安装包文件名，浏览器会开始下载。如果你找不到下载后的文件，请打开 Finder 的“下载”文件夹。
 
-安装完成后，可以直接对 Codex 说“恢复文档侧边栏”。随包附带的 Skill 会启动本机服务和常驻注入器，并真实点击入口确认页面能够加载；它不会删除或重建本地文档索引。
+为了避免选错，也可以直接点击下面对应的安装包：
 
-## 1 分钟验证是否安装成功
+- 非哔哩哔哩员工：[下载公开通用版 macOS 安装包](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/v0.2.1/codex-document-artifacts-v0.2.1-macos.zip)
+- 哔哩哔哩员工：[下载公司专供版 macOS 安装包](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/bilibili-v1.0.1/codex-document-artifacts-bilibili-v1-macos.zip)
 
-1. 打开 [本机健康检查页](http://127.0.0.1:47824/health)。看到 `"ok":true`，说明本地服务正常。
-2. 回到“文档产物”页面，确认时间筛选默认显示“全部时间”。首次扫描历史记录可能需要一点时间。
-3. 找到任意一条文档，点击“复制链接🔗”，再粘贴到备忘录。能粘贴出链接或文件路径，就说明复制功能正常。
+### 第 4 步：解压安装包
 
-如果文档库暂时是空的，不代表安装失败。请先确认本机 Codex 中仍保留至少一个包含文档链接或受支持文件的最终回复，然后点击页面刷新。
+1. 在 Finder 的“下载”文件夹中找到刚下载的 `.zip` 文件。
+2. 双击 `.zip`，macOS 会解压出一个同名文件夹。
+3. 打开解压后的文件夹。里面应当能看到 `install.command` 和 `start.command`。
+4. 如果文件夹里没有这两个文件，而是只看到一堆源代码目录，说明你误下了 `Source code`；请删除它并回到第 3 步下载第一行 macOS ZIP 安装包。
+
+### 第 5 步：运行一次安装程序
+
+1. 双击 `install.command`。
+2. macOS 如果提示无法确认开发者，请按住 `Control` 键点击 `install.command`，选择“打开”，再在弹窗中选择“打开”。仍被拦截时，到“系统设置 → 隐私与安全性”页面下方选择允许打开。
+3. 系统会打开一个终端窗口并自动检查环境。第一次安装需要联网下载依赖，可能需要几分钟；请不要中途关闭窗口。
+4. 如果提示没有找到 Node.js，请打开 [Node.js 官方下载页](https://nodejs.org/zh-cn/download)，下载安装 **LTS（长期支持）版本**。安装 Node.js 后，重新双击 `install.command`。
+5. 看到“安装完成”后按回车关闭窗口。安装程序同时会安装“恢复文档侧边栏”Skill。
+
+本项目需要 Node.js `22.5` 或更高版本；当前 Node.js LTS 通常可以满足要求。
+
+### 第 6 步：在 Codex 里用一句话激活
+
+安装完成后回到 Codex，直接发送：
+
+```text
+激活文档产物侧边栏
+```
+
+Codex 会调用刚安装的“恢复文档侧边栏”Skill，自动启动本机文档服务、恢复左侧“文档产物”入口，并点击入口确认页面能够加载。等 Codex 报告完成后，直接使用左侧的“文档产物”即可。
+
+以后 Codex 重启、电脑重启或入口消失时，再说一次“激活文档产物侧边栏”就可以，不需要重复安装。
+
+只有在 Codex 没有识别这句话时，才使用手动备用方法：完全退出 Codex，然后双击解压文件夹里的 `start.command`，并保持弹出的终端窗口开启。
+
+### 第 7 步：用 1 分钟确认安装完整
+
+1. 打开[本机健康检查页](http://127.0.0.1:47824/health)。看到 `"ok":true`，说明本机服务正常。
+2. 回到 Codex，点击左侧“文档产物”，确认页面能加载。
+3. 页面默认显示“全部时间”。第一次扫描本机保留的 Codex 历史可能需要一点时间。
+4. 找到任意文档，点击“复制链接🔗”，再粘贴到备忘录；能粘贴出链接或本地文件路径，就说明主要功能正常。
+
+文档库暂时为空不代表安装失败。本模块只收录曾经出现在 Codex **最终回复**中的受支持文档链接或文件；普通电脑文件不会被自动扫描进来。
+
+### 侧边栏没有出现时怎么恢复
+
+在 Codex 中直接输入：
+
+```text
+激活文档产物侧边栏
+```
+
+随安装包附带的 Skill 会恢复本机服务和侧边栏入口，并实际点击入口确认页面能够加载；它不会删除或重建你的本地文档索引。
+
+如果仍未恢复：
+
+1. 再次打开[健康检查页](http://127.0.0.1:47824/health)。如果网页打不开，再说一次“激活文档产物侧边栏”。
+2. 确认使用的是 macOS 版 Codex；Windows 和 Linux 当前没有 Codex 侧边栏入口。
+3. 如果 Codex 没有调用 Skill，完全退出并重新打开 Codex后再说一次；仍不行时，再使用解压文件夹中的 `start.command` 备用启动。
 
 ## 从源码安装
 
@@ -91,6 +166,7 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 ```bash
 git clone https://github.com/RuiChenKe/codex-document-artifacts.git
 cd codex-document-artifacts
+git checkout edition/bilibili-v1
 npm ci
 npm run build
 npm start

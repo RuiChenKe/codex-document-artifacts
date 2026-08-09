@@ -51,3 +51,16 @@ test("the Bilibili edition includes company platforms and removes the long-term 
   assert.doesNotMatch(serverSource, /api\/local\/long-term-documents/u);
   assert.doesNotMatch(cliSource, /include-long-term/u);
 });
+
+test("Codex can install non-interactively and activate the sidebar by intent", async () => {
+  const installer = await readFile(path.join(root, "install.command"), "utf8");
+  const protocol = await readFile(path.join(root, "CODEX_INSTALL.md"), "utf8");
+  const skill = await readFile(path.join(root, "skills/restore-document-sidebar/SKILL.md"), "utf8");
+  const restore = await readFile(path.join(root, "skills/restore-document-sidebar/scripts/restore.mjs"), "utf8");
+  assert.match(installer, /CODEX_DOCUMENT_ARTIFACTS_NONINTERACTIVE/u);
+  assert.match(protocol, /documentsClickLoaded/u);
+  assert.match(protocol, /codex-document-artifacts-v0\.2\.1-macos\.zip/u);
+  assert.match(skill, /激活文档产物侧边栏/u);
+  assert.doesNotMatch(restore, /--user-data-dir/u);
+  assert.match(restore, /data-app-action-sidebar-scroll/u);
+});

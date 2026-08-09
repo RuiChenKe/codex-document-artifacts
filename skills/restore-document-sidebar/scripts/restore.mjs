@@ -2,7 +2,6 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { access, mkdir, open, readFile, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -117,28 +116,46 @@ async function currentResidentPid() {
 }
 
 async function ensureCdpWindow() {
-  if (await reachable(`${cdpOrigin}/json/version`)) return false;
+  let launchedDedicatedWindow = false;
   if (process.platform !== "darwin") {
     throw new Error("Codex sidebar recovery currently requires macOS");
   }
   const appPath = "/Applications/ChatGPT.app";
   await access(appPath);
-  const profilePath = path.join(os.tmpdir(), `codex-document-artifacts-${port}`);
-  await mkdir(profilePath, { recursive: true });
-  const launched = spawnSync("/usr/bin/open", [
-    "-n", "-a", appPath, "--args",
-    `--remote-debugging-port=${port}`,
-    "--remote-debugging-address=127.0.0.1",
-    `--remote-allow-origins=${cdpOrigin}`,
-    `--user-data-dir=${profilePath}`,
-  ], { encoding: "utf8" });
-  if (launched.status !== 0) throw new Error(launched.stderr || "Could not open Codex");
-  await waitFor(
-    () => reachable(`${cdpOrigin}/json/version`),
-    30_000,
-    "Codex recovery window did not expose its local debug port",
-  );
-  return true;
+  const deadline = Date.now() + 90_000;
+  let launchAttempts = 0;
+  let lastLaunchAt = 0;
+  while (Date.now() < deadline) {
+    if (!(await reachable(`${cdpOrigin}/json/version`))) {
+      if (launchAttempts >= 3) break;
+      const sinceLastLaunch = Date.now() - lastLaunchAt;
+      if (sinceLastLaunch < 2_000) await delay(2_000 - sinceLastLaunch);
+      launchAttempts += 1;
+      lastLaunchAt = Date.now();
+      const launched = spawnSync("/usr/bin/open", [
+        "-n", "-a", appPath, "--args",
+        `--remote-debugging-port=${port}`,
+        "--remote-debugging-address=127.0.0.1",
+        `--remote-allow-origins=${cdpOrigin}`,
+      ], { encoding: "utf8" });
+      if (launched.status !== 0) throw new Error(launched.stderr || "Could not open Codex");
+      launchedDedicatedWindow = true;
+      await delay(1_000);
+      continue;
+    }
+    try {
+      const target = await mainTarget();
+      if (
+        target
+        && await evaluate(target, `Boolean(document.querySelector("[data-app-action-sidebar-scroll]"))`)
+      ) return launchedDedicatedWindow;
+    } catch {}
+    await delay(500);
+  }
+  if (!(await reachable(`${cdpOrigin}/json/version`))) {
+    throw new Error("Codex recovery window did not expose a stable local debug port");
+  }
+  throw new Error("Codex recovery window did not finish loading its sidebar");
 }
 
 async function startResident() {
@@ -176,7 +193,7 @@ const restored = await waitFor(async () => {
   await delay(800);
   const frameUrl = await evaluate(target, `document.getElementById("codex-documents-frame")?.src || null`);
   return frameUrl ? { target, frameUrl } : null;
-}, 30_000, "Document sidebar recovery did not become healthy").catch(async (error) => {
+}, 45_000, "Document sidebar recovery did not become healthy").catch(async (error) => {
   const log = await readFile(logPath, "utf8").catch(() => "");
   const tail = log.trim().split("\n").slice(-8).join("\n");
   throw new Error(`${error.message}${tail ? `\n${tail}` : ""}`);
