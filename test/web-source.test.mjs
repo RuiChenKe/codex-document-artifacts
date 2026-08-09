@@ -47,7 +47,7 @@ test("Codex can install non-interactively and activate the sidebar by intent", a
   const restore = await readFile(path.join(root, "skills/restore-document-sidebar/scripts/restore.mjs"), "utf8");
   assert.match(installer, /CODEX_DOCUMENT_ARTIFACTS_NONINTERACTIVE/u);
   assert.match(protocol, /documentsClickLoaded/u);
-  assert.match(protocol, /codex-document-artifacts-v0\.2\.1-macos\.zip/u);
+  assert.match(protocol, /codex-document-artifacts-v0\.2\.2-macos\.zip/u);
   assert.match(skill, /激活文档产物侧边栏/u);
   assert.doesNotMatch(restore, /--user-data-dir/u);
   assert.match(restore, /data-app-action-sidebar-scroll/u);

@@ -9,7 +9,7 @@ macOS 用户安装并启动后，不需要另找网页：点击 Codex 左侧的�
 
 ![文档产物界面](docs/screenshot.png)
 
-当前提供两个版本：普通用户使用[公开通用版 v0.2.1](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.2.1)；哔哩哔哩员工可以使用[哔哩哔哩公司专供版 v1.0.1](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/bilibili-v1.0.1)。第一次安装请严格按下方指引选择，不要只看 GitHub 的绿色 `Latest` 标记。
+当前提供两个版本：普通用户使用[公开通用版 v0.2.2](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.2.2)；哔哩哔哩员工可以使用[哔哩哔哩公司专供版 v1.0.2](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/bilibili-v1.0.2)。第一次安装请严格按下方指引选择，不要只看 GitHub 的绿色 `Latest` 标记。
 
 ## 最简单的安装方法：把一句话发给 Codex
 
@@ -66,8 +66,8 @@ Codex 最终明确报告本机服务、侧边栏入口和点击加载都验证�
 
 | 你的身份 | 应选择的 Release | 应下载的文件 |
 | --- | --- | --- |
-| 不是哔哩哔哩员工 | [公开通用版 v0.2.1](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.2.1) | `codex-document-artifacts-v0.2.1-macos.zip` |
-| 是哔哩哔哩员工，并需要飞书、知了、企业微信等公司文档平台模块 | [哔哩哔哩公司专供版 v1.0.1](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/bilibili-v1.0.1) | `codex-document-artifacts-bilibili-v1-macos.zip` |
+| 不是哔哩哔哩员工 | [公开通用版 v0.2.2](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/v0.2.2) | `codex-document-artifacts-v0.2.2-macos.zip` |
+| 是哔哩哔哩员工，并需要飞书、知了、企业微信等公司文档平台模块 | [哔哩哔哩公司专供版 v1.0.2](https://github.com/RuiChenKe/codex-document-artifacts/releases/tag/bilibili-v1.0.2) | `codex-document-artifacts-bilibili-v1-macos.zip` |
 
 两版都包含文档库编辑、删除、按文件格式归类和“恢复文档侧边栏”Skill。公司专供版额外内置公司常用文档平台模块，并移除了长期文档模块。
 
@@ -79,7 +79,7 @@ Codex 最终明确报告本机服务、侧边栏入口和点击加载都验证�
 1. 打开仓库链接：<https://github.com/RuiChenKe/codex-document-artifacts>。
 2. 在仓库首页右侧找到 **Releases** 并点击。若窗口较窄或使用手机，Releases 可能出现在页面较下方。
 3. 也可以直接打开[全部 Releases 页面](https://github.com/RuiChenKe/codex-document-artifacts/releases)。
-4. 根据第 1 步找到“公开通用版 v0.2.1”或“哔哩哔哩公司专供版 v1.0.1”。不要因为某一版带有 `Latest` 就跳过身份判断。
+4. 根据第 1 步找到“公开通用版 v0.2.2”或“哔哩哔哩公司专供版 v1.0.2”。不要因为某一版带有 `Latest` 就跳过身份判断。
 
 ### 第 3 步：在 Assets 中只下载真正的安装包
 
@@ -98,8 +98,8 @@ Codex 最终明确报告本机服务、侧边栏入口和点击加载都验证�
 
 为了避免选错，也可以直接点击下面对应的安装包：
 
-- 非哔哩哔哩员工：[下载公开通用版 macOS 安装包](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/v0.2.1/codex-document-artifacts-v0.2.1-macos.zip)
-- 哔哩哔哩员工：[下载公司专供版 macOS 安装包](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/bilibili-v1.0.1/codex-document-artifacts-bilibili-v1-macos.zip)
+- 非哔哩哔哩员工：[下载公开通用版 macOS 安装包](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/v0.2.2/codex-document-artifacts-v0.2.2-macos.zip)
+- 哔哩哔哩员工：[下载公司专供版 macOS 安装包](https://github.com/RuiChenKe/codex-document-artifacts/releases/download/bilibili-v1.0.2/codex-document-artifacts-bilibili-v1-macos.zip)
 
 ### 第 4 步：解压安装包
 
