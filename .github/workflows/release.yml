@@ -1,0 +1,59 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "bilibili-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Package release
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [[ "${tag}" == bilibili-v* ]]; then
+            folder="codex-document-artifacts-bilibili-v1"
+            asset="codex-document-artifacts-bilibili-v1-macos.zip"
+            title="哔哩哔哩公司专供版 v1"
+            notes="内置飞书、知了、企业微信等公司常用文档平台模块；保留模块编辑、删除、按文件格式归类和恢复文档侧边栏 Skill；移除长期文档模块。"
+          else
+            folder="codex-document-artifacts-v0.2.0"
+            asset="codex-document-artifacts-v0.2.0-macos.zip"
+            title="公开通用版 v0.2.0"
+            notes="新增模块编辑与删除、按文件格式归类（含 PNG、JPG/JPEG、HTML 扫描），并附带恢复文档侧边栏 Skill。"
+          fi
+          mkdir -p "release/${folder}"
+          rsync -a ./ "release/${folder}/" \
+            --exclude .git --exclude node_modules --exclude release --exclude output --exclude .data
+          COPYFILE_DISABLE=1 ditto -c -k --keepParent "release/${folder}" "release/${asset}"
+          shasum -a 256 "release/${asset}" > "release/${asset}.sha256"
+          {
+            echo "asset=release/${asset}"
+            echo "checksum=release/${asset}.sha256"
+            echo "title=${title}"
+            echo "notes=${notes}"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          "${{ steps.package.outputs.asset }}"
+          "${{ steps.package.outputs.checksum }}"
+          --title "${{ steps.package.outputs.title }}"
+          --notes "${{ steps.package.outputs.notes }}"
