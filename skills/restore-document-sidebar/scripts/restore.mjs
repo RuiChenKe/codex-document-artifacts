@@ -60,7 +60,10 @@ async function mainTarget() {
     if (target.type !== "page" || !target.webSocketDebuggerUrl) return false;
     try {
       const url = new URL(target.url);
-      return url.protocol === "app:" && !url.searchParams.has("initialRoute");
+      return url.protocol === "app:"
+        && url.hostname === "-"
+        && url.pathname === "/index.html"
+        && !url.searchParams.has("initialRoute");
     } catch {
       return false;
     }
@@ -186,13 +189,15 @@ const restored = await waitFor(async () => {
   if (!target) return null;
   const state = await evaluate(target, `({
     documentsEntry: Boolean(document.getElementById("codex-documents-entry")),
-    frameUrl: document.getElementById("codex-documents-frame")?.src || null
+    frameUrl: document.getElementById("codex-documents-frame")?.src || null,
+    frameVisible: document.getElementById("codex-documents-frame")?.hidden === false,
+    statusHidden: document.getElementById("codex-documents-status")?.hidden === true,
+    entrySelected: document.getElementById("codex-documents-entry")?.getAttribute("aria-current") === "page"
   })`);
   if (!state?.documentsEntry) return null;
   await evaluate(target, `document.getElementById("codex-documents-entry")?.click()`);
-  await delay(800);
-  const frameUrl = await evaluate(target, `document.getElementById("codex-documents-frame")?.src || null`);
-  return frameUrl ? { target, frameUrl } : null;
+  if (!(state.frameVisible && state.statusHidden && state.entrySelected)) return null;
+  return state.frameUrl ? { target, frameUrl: state.frameUrl } : null;
 }, 45_000, "Document sidebar recovery did not become healthy").catch(async (error) => {
   const log = await readFile(logPath, "utf8").catch(() => "");
   const tail = log.trim().split("\n").slice(-8).join("\n");

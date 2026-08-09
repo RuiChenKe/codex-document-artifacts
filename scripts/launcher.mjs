@@ -292,6 +292,26 @@ class CdpConnection {
     const handlers = this.handlers.get(method) || [];
     handlers.push(handler);
     this.handlers.set(method, handlers);
+    return () => {
+      const current = this.handlers.get(method) || [];
+      const next = current.filter((candidate) => candidate !== handler);
+      if (next.length > 0) this.handlers.set(method, next);
+      else this.handlers.delete(method);
+    };
+  }
+
+  waitFor(method, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        unsubscribe();
+        reject(new Error(`Timed out waiting for ${method}`));
+      }, timeoutMs);
+      const unsubscribe = this.on(method, (params) => {
+        clearTimeout(timer);
+        unsubscribe();
+        resolve(params);
+      });
+    });
   }
 
   close() {
@@ -311,7 +331,10 @@ async function codexTargets(port) {
     if (target.type !== "page" || !target.webSocketDebuggerUrl) return false;
     try {
       const targetUrl = new URL(target.url);
-      return targetUrl.protocol === "app:" && !targetUrl.searchParams.has("initialRoute");
+      return targetUrl.protocol === "app:"
+        && targetUrl.hostname === "-"
+        && targetUrl.pathname === "/index.html"
+        && !targetUrl.searchParams.has("initialRoute");
     } catch {
       return false;
     }
@@ -368,13 +391,22 @@ async function waitForInjection(cdp, sourceHash, shouldOpen, timeoutMs) {
     state = await evaluate(cdp, `({
       sourceHash: window.__codexDocumentsInjection__?.sourceHash || null,
       entryMounted: Boolean(document.getElementById("codex-documents-entry")),
+      entrySelected: document.getElementById("codex-documents-entry")?.getAttribute("aria-current") === "page",
       pageVisible: document.getElementById("codex-documents-page")?.hidden === false,
-      frameUrl: document.getElementById("codex-documents-frame")?.src || null
+      frameUrl: document.getElementById("codex-documents-frame")?.src || null,
+      frameVisible: document.getElementById("codex-documents-frame")?.hidden === false,
+      statusHidden: document.getElementById("codex-documents-status")?.hidden === true
     })`);
     if (
       state?.sourceHash === sourceHash
       && state.entryMounted
-      && (!shouldOpen || (state.pageVisible && state.frameUrl))
+      && (!shouldOpen || (
+        state.entrySelected
+        && state.pageVisible
+        && state.frameUrl
+        && state.frameVisible
+        && state.statusHidden
+      ))
     ) return state;
     await delay(200);
   }
@@ -408,11 +440,20 @@ async function injectTarget(target, source, sourceHash, shouldOpen) {
     });
     cdp.injectionIdentifier = registration.identifier;
     cdp.on("Page.loadEventFired", () => publishScriptIdentifier(cdp, registration.identifier));
+
+    // CSP is initialized during navigation. Reload once after enabling the CDP
+    // bypass so current ChatGPT builds can embed the local document service.
+    const pageLoaded = cdp.waitFor("Page.loadEventFired", 15_000);
+    await cdp.send("Page.reload");
+    await pageLoaded;
     await evaluate(cdp, source);
     await publishScriptIdentifier(cdp, registration.identifier);
     if (shouldOpen) await evaluate(cdp, "window.__codexDocumentsInjection__?.open()");
     const state = await waitForInjection(cdp, sourceHash, shouldOpen, 15_000);
     if (!state?.entryMounted) throw new Error("The Document Artifacts sidebar entry did not mount");
+    if (shouldOpen && !(state?.frameVisible && state?.statusHidden && state?.entrySelected)) {
+      throw new Error("The Document Artifacts page did not finish loading");
+    }
     return { cdp, state };
   } catch (error) {
     await cleanupTarget(cdp);
