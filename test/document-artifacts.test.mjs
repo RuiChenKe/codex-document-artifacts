@@ -8,7 +8,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { createDocumentArtifactsServer, resolvePort, resolveServerOptions } from "../server/app.mjs";
-import { DocumentArtifactStore } from "../server/document-artifacts.mjs";
+import { DocumentArtifactStore, documentArtifactInternals } from "../server/document-artifacts.mjs";
 
 function rolloutMessage(timestamp, role, text, phase) {
   return JSON.stringify({
@@ -66,7 +66,7 @@ async function createCodexFixture() {
       "[企微方案](https://doc.weixin.qq.com/doc/wecom-token)",
       "[无关网页](https://internal.example/doc/internal-token)",
       `[本地说明](${markdownPath})`,
-      `[演示文稿](${officePath})`,
+      `:codex-file-citation{path="${officePath}" purpose="output"}`,
       `[预览图片](${imagePath})`,
     ].join("\n"), "final_answer"),
   ];
@@ -138,6 +138,27 @@ function storeOptions(fixture, overrides = {}) {
     ...overrides,
   };
 }
+
+test("codex file citations expose supported local documents", () => {
+  const officePath = path.join(os.tmpdir(), "evaluation report.xlsx");
+  const jsonPath = path.join(os.tmpdir(), "evaluation details.json");
+  const candidates = documentArtifactInternals.extractCandidates([
+    `:codex-file-citation{path="${officePath}" purpose="output"}`,
+    `:codex-file-citation{path="${jsonPath}" purpose="output"}`,
+  ].join("\n"));
+
+  assert.deepEqual(candidates.map(({ category, officeType, locator, title }) => ({
+    category,
+    officeType,
+    locator,
+    title,
+  })), [{
+    category: "office",
+    officeType: "excel",
+    locator: officePath,
+    title: path.basename(officePath),
+  }]);
+});
 
 function rawRequest({ port, path: requestPath, headers = {} }) {
   return new Promise((resolve, reject) => {
@@ -230,12 +251,12 @@ test("扫描全部历史，只提取 final_answer，并保留复制链接所需 
   assert.equal(pendingUpgradeState.byte_offset, 0);
   const upgradeScan = await store.scanNow();
   assert.equal(upgradeScan.scannedThreads, 1);
-  assert.equal(store.list({ limit: 200 }).total, 6, "scanner v4 升级应重置旧 offset 并完整重扫");
+  assert.equal(store.list({ limit: 200 }).total, 6, "scanner v5 升级应重置旧 offset 并完整重扫");
   assert.equal(store.list({ query: "后续补充" }).items[0]?.locator, fixture.laterMarkdownPath);
   const scanState = store.database.prepare(`
     SELECT scanner_version, byte_offset FROM document_scan_state
   `).get();
-  assert.equal(scanState.scanner_version, 4);
+  assert.equal(scanState.scanner_version, 5);
   assert.ok(scanState.byte_offset > 0);
   await store.stop();
 

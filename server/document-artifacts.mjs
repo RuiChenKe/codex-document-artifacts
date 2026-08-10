@@ -13,7 +13,7 @@ const MAX_JSON_LINE_BYTES = 8 * 1024 * 1024;
 const PLATFORM_TITLE_SUCCESS_TTL_MS = 24 * 60 * 60 * 1000;
 const PLATFORM_TITLE_FAILURE_TTL_MS = 60 * 60 * 1000;
 const PLATFORM_TITLE_RESOLVER_VERSION = 2;
-const DOCUMENT_SCANNER_VERSION = 4;
+const DOCUMENT_SCANNER_VERSION = 5;
 const LONG_TERM_SOURCE_MAX_BYTES = 2 * 1024 * 1024;
 const IMPORTANT_MEMORY_FILES = ["memory_summary.md", "MEMORY.md", "raw_memories.md"];
 
@@ -154,7 +154,7 @@ function displayTitle(label, locator) {
     && candidate !== locator
     && !needsPlatformTitle(candidate, locator)
   ) return candidate;
-  if (locator.startsWith("/")) return path.basename(locator);
+  if (path.isAbsolute(locator)) return path.basename(locator);
   try {
     const url = new URL(locator);
     return decodeURIComponent(url.pathname.split("/").filter(Boolean).at(-1) ?? url.hostname);
@@ -298,6 +298,9 @@ function extractCandidates(text) {
 
   const markdown = /\[([^\]]+)\]\((<[^>]+>|[^\n)]+)\)/gu;
   for (const match of text.matchAll(markdown)) add(match[1], match[2], match.index, match[0].length);
+
+  const codexFileCitation = /:codex-file-citation\{[^}\n]*\bpath="([^"\n]+)"[^}\n]*\}/gu;
+  for (const match of text.matchAll(codexFileCitation)) add("", match[1], match.index, match[0].length);
 
   const bareUrl = /https?:\/\/[^\s<>"'`\])}]+/gu;
   for (const match of text.matchAll(bareUrl)) {
