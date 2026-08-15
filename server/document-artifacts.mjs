@@ -13,7 +13,9 @@ const MAX_JSON_LINE_BYTES = 8 * 1024 * 1024;
 const PLATFORM_TITLE_SUCCESS_TTL_MS = 24 * 60 * 60 * 1000;
 const PLATFORM_TITLE_FAILURE_TTL_MS = 60 * 60 * 1000;
 const PLATFORM_TITLE_RESOLVER_VERSION = 2;
-const DOCUMENT_SCANNER_VERSION = 5;
+// Links are artifacts only when the assistant actually delivered a write to
+// them. Read-only references, future plans, and source citations are inputs.
+const DOCUMENT_SCANNER_VERSION = 8;
 const LONG_TERM_SOURCE_MAX_BYTES = 2 * 1024 * 1024;
 const IMPORTANT_MEMORY_FILES = ["memory_summary.md", "MEMORY.md", "raw_memories.md"];
 
@@ -27,7 +29,7 @@ const CUSTOM_FORMAT_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".html"]);
 const FEISHU_PATHS = new Set(["doc", "docx", "wiki", "sheets", "slides", "base", "bitable"]);
 const WECOM_PATHS = new Set(["doc", "sheet", "smartpage"]);
 const VERSION_SUFFIX = /(?:[\s_.\-—–]*(?:v\d+(?:\.\d+)*|版本\d+|第\d+版|修订版|修改版|更新版|最终版|终版|final|rev\d+)|[\s_.\-—–]*[（(](?:v\d+(?:\.\d+)*|版本\d+|第\d+版|修订版|修改版|更新版|最终版|终版|final|rev\d+)[）)])$/iu;
-const GENERIC_DOCUMENT_TITLE = /^(?:打开|查看|链接|文档|文件|下载|这里|那里|这篇|那篇|本文|本篇|上面|下面|对应(?:的)?(?:GPT)?纪要|第[零一二两三四五六七八九十百\d]+(?:篇|份|个|版)(?:纪要)?)$/iu;
+const GENERIC_DOCUMENT_TITLE = /^(?:(?:打开|查看)(?:飞书|企微|企业微信|知了)?(?:文档|文件|纪要|报告|链接)?|链接|文档|文件|下载|这里|那里|这篇|那篇|本文|本篇|上面|下面|对应(?:的)?(?:GPT)?纪要|第[零一二两三四五六七八九十百\d]+(?:篇|份|个|版)(?:纪要)?)$/iu;
 const LONG_TERM_COLLECTION_TITLE = /(?:清单|存档|合集|身份库|知识库|资料库|数据库|台账|档案库)/u;
 const BUILTIN_DOCUMENT_LIBRARIES = [
   { id: "feishu", name: "飞书文档", kind: "builtin" },
@@ -225,7 +227,11 @@ function classifyOnlineUrl(value) {
     return { category: "feishu", officeType: null, canonical };
   }
   if (hostname === "aistudio.bilibili.co") {
-    return { category: "zhiliao", officeType: null, canonical };
+    const documentId = locatorToken(canonical);
+    const normalized = documentId.startsWith("doc_")
+      ? `https://aistudio.bilibili.co/space/doc/${documentId}`
+      : canonical;
+    return { category: "zhiliao", officeType: null, canonical: normalized };
   }
   if (hostname === "doc.weixin.qq.com" && WECOM_PATHS.has(firstPath)) {
     return { category: "wecom", officeType: null, canonical };
@@ -282,14 +288,124 @@ function logicalKey(candidate, threadId) {
   ].join(":");
 }
 
-function extractCandidates(text) {
+const DOCUMENT_WRITE_ACTION = /(?:创建|新建|生成|撰写|编写|写入|同步|更新|修改|编辑|发布|交付|保存|上传|导出|转换|重做|重建|覆盖|处理|修复|修正|补齐|收口)/u;
+const DOCUMENT_WRITE_RESULT = /(?:已|已经|成功|完成|完毕|通过|改好|收口)/u;
+const DOCUMENT_NOUN = /(?:文档|文件|纪要|报告|手册|表格|表|清单|方案|稿|PPT|Word|Excel|Markdown|MD)/iu;
+const DOCUMENT_REFERENCE_CONTEXT = /(?:只读|计划|准备|将要|后续|之后|(?:参考|引用|来源|原文)(?:资料|文档|链接)?\s*(?:[:：]|为|是|\[|\])|阅读(?:了|过|完成)?|读取(?:了|过|完成)?|查看(?:内容|原文)|未(?:创建|新建|生成|写入|同步|更新|修改|编辑|发布|交付|保存|上传|导出|转换|重做|重建|覆盖|处理|修复|修正|补齐)|没有(?:创建|新建|生成|写入|同步|更新|修改|编辑|发布|交付|保存|上传|导出|转换|重做|重建|覆盖|处理|修复|修正|补齐))/u;
+const DOCUMENT_STRUCTURED_OUTPUT = /^(?:[-*+]\s+|\d+[.)]\s+)?(?:文档|文件|纪要|报告|手册|表格|清单|方案|草稿|成品|交付物|链接|\[[^\]]+\]\()/iu;
+const DOCUMENT_STRONG_WRITE_ACTION = /(?:创建|新建|生成|写入|同步|更新|修改|编辑|发布|交付|保存|上传|导出|转换|重做|重建|覆盖)/u;
+const DOCUMENT_NON_ARTIFACT_LEAD = /(?:安装|配置|启用|下载|解压|依赖|授权)[^。；;，,]{0,24}(?:完成|成功|通过)/u;
+
+function candidateParagraph(text, matchStart, matchLength) {
+  const previousParagraph = text.lastIndexOf("\n\n", matchStart - 1);
+  const paragraphStart = Math.max(previousParagraph < 0 ? 0 : previousParagraph + 2, matchStart - 520);
+  const nextParagraph = text.indexOf("\n\n", matchStart + matchLength);
+  const paragraphEnd = Math.min(
+    nextParagraph >= 0 ? nextParagraph : text.length,
+    matchStart + matchLength + 320,
+  );
+  return text.slice(paragraphStart, paragraphEnd).replace(/\s+/gu, " ").trim();
+}
+
+function candidateEvidenceBefore(text, matchStart, matchLength) {
+  const previousParagraph = text.lastIndexOf("\n\n", matchStart - 1);
+  const start = Math.max(previousParagraph < 0 ? 0 : previousParagraph + 2, matchStart - 520);
+  return text.slice(start, matchStart + matchLength).replace(/\s+/gu, " ").trim();
+}
+
+function candidateReferenceContext(text, matchStart, matchLength) {
+  const start = Math.max(text.lastIndexOf("\n", matchStart - 1) + 1, matchStart - 100);
+  const nextLine = text.indexOf("\n", matchStart + matchLength);
+  const end = Math.min(nextLine < 0 ? text.length : nextLine, matchStart + matchLength + 100);
+  return text.slice(start, end).replace(/\s+/gu, " ").trim();
+}
+
+function previousDeliveryBlock(text, matchStart) {
+  const currentParagraph = text.lastIndexOf("\n\n", matchStart - 1);
+  if (currentParagraph < 0) return "";
+  const prefix = text.slice(0, currentParagraph).trimEnd();
+  if (!prefix) return "";
+  const previousParagraph = prefix.lastIndexOf("\n\n");
+  return prefix.slice(Math.max(previousParagraph < 0 ? 0 : previousParagraph + 2, prefix.length - 520))
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function containsCompletedWrite(context) {
+  const resultThenAction = new RegExp(
+    `${DOCUMENT_WRITE_RESULT.source}[^。；;，,]{0,24}${DOCUMENT_WRITE_ACTION.source}`,
+    "iu",
+  );
+  const actionThenResult = new RegExp(
+    `${DOCUMENT_WRITE_ACTION.source}[^。；;，,]{0,24}${DOCUMENT_WRITE_RESULT.source}`,
+    "iu",
+  );
+  return resultThenAction.test(context) || actionThenResult.test(context);
+}
+
+function containsDirectChange(context) {
+  return /(?:改为|调整为|替换为|插入|删除|补上|新增|移除)[^\n]{0,100}(?:文档|文件|纪要|报告|手册|表格|草稿|\[)/u.test(context);
+}
+
+function containsCompletedDeliveryLead(context) {
+  return containsCompletedWrite(context)
+    || /(?:已|已经|本次|该篇|这篇|本篇|手头(?:的)?)[^。；;，,]{0,24}(?:完成|处理完成|收口|交付完成|归档完成)/u.test(context)
+    || /(?:完成|处理完成|收口)[^。；;，,]{0,20}(?:并自检通过|并验证通过|并回读通过|：|:)$/u.test(context);
+}
+
+function isDocumentDelivery(text, matchStart, matchLength) {
+  const context = candidateParagraph(text, matchStart, matchLength);
+  const evidenceBefore = candidateEvidenceBefore(text, matchStart, matchLength);
+  const referenceContext = candidateReferenceContext(text, matchStart, matchLength);
+  if (DOCUMENT_REFERENCE_CONTEXT.test(referenceContext)) return false;
+
+  const candidateMarkup = text.slice(matchStart, matchStart + matchLength);
+  if (LONG_TERM_COLLECTION_TITLE.test(candidateMarkup)) {
+    const strongCollectionWrite = new RegExp(
+      `${DOCUMENT_WRITE_RESULT.source}[^。；;，,]{0,20}${DOCUMENT_STRONG_WRITE_ACTION.source}[^。；;，,]{0,36}(?:${LONG_TERM_COLLECTION_TITLE.source}|\\[)`,
+      "iu",
+    );
+    const previous = previousDeliveryBlock(text, matchStart);
+    if (!strongCollectionWrite.test(`${previous} ${evidenceBefore}`)) return false;
+  }
+
+  if (containsCompletedWrite(evidenceBefore) || containsDirectChange(evidenceBefore)) return true;
+  if (
+    containsCompletedDeliveryLead(evidenceBefore)
+    && /[:：]\s*(?:[-*+]\s+)?\[[^\]]+\]\(/u.test(evidenceBefore)
+  ) return true;
+
+  const immediateAfter = text.slice(matchStart + matchLength, matchStart + matchLength + 120)
+    .split(/(?:\n\n|[。；;])/u, 1)[0];
+  const completedAfter = new RegExp(
+    "^\\s*(?:已|已经)?\\s*(?:更新|修改|编辑|写入|同步|发布|保存|覆盖|重做|修复|修正|转换)",
+    "iu",
+  );
+  if (completedAfter.test(immediateAfter)) return true;
+
+  const structuredOutput = DOCUMENT_NOUN.test(context) || DOCUMENT_STRUCTURED_OUTPUT.test(context);
+  if (
+    structuredOutput
+    && !DOCUMENT_NON_ARTIFACT_LEAD.test(evidenceBefore)
+    && containsCompletedDeliveryLead(evidenceBefore)
+  ) return true;
+
+  const previous = previousDeliveryBlock(text, matchStart);
+  return Boolean(previous)
+    && structuredOutput
+    && !DOCUMENT_NON_ARTIFACT_LEAD.test(previous)
+    && containsCompletedDeliveryLead(previous);
+}
+
+function extractCandidates(text, { requireDelivery = true } = {}) {
   const candidates = [];
   const seenTargets = new Set();
-  const add = (label, rawTarget, matchStart, matchLength) => {
+  const add = (label, rawTarget, matchStart, matchLength, forceDelivery = false) => {
     const target = String(rawTarget ?? "").trim().replace(/^<|>$/g, "");
     if (!target || seenTargets.has(target)) return;
     const classified = classifyOnlineUrl(target) ?? normalizeLocalPath(target);
     if (!classified) return;
+    if (requireDelivery && !forceDelivery && !isDocumentDelivery(text, matchStart, matchLength)) return;
     seenTargets.add(target);
     candidates.push({
       ...classified,
@@ -301,10 +417,20 @@ function extractCandidates(text) {
   };
 
   const markdown = /\[([^\]]+)\]\((<[^>]+>|[^\n)]+)\)/gu;
-  for (const match of text.matchAll(markdown)) add(match[1], match[2], match.index, match[0].length);
+  const markdownRanges = [];
+  for (const match of text.matchAll(markdown)) {
+    markdownRanges.push([match.index, match.index + match[0].length]);
+    add(match[1], match[2], match.index, match[0].length);
+  }
+
+  const codexFileCitation = /:codex-file-citation\{[^}\n]*\bpath="([^"\n]+)"[^}\n]*\}/gu;
+  for (const match of text.matchAll(codexFileCitation)) {
+    add("", match[1], match.index, match[0].length, true);
+  }
 
   const bareUrl = /https?:\/\/[^\s<>"'`\])}]+/gu;
   for (const match of text.matchAll(bareUrl)) {
+    if (markdownRanges.some(([start, end]) => match.index >= start && match.index < end)) continue;
     add("", match[0].replace(/[.,;:，。；：!?！？]+$/u, ""), match.index, match[0].length);
   }
 
@@ -944,9 +1070,43 @@ export class DocumentArtifactStore {
     `).get(logicalKey(candidate, threadId));
   }
 
+  #restoreMeaningfulArtifactTitles() {
+    const artifacts = this.database.prepare(`
+      SELECT id, title, latest_locator
+      FROM document_artifacts
+      WHERE category IN ('feishu', 'zhiliao', 'wecom')
+    `).all();
+    let updated = 0;
+    for (const artifact of artifacts) {
+      if (!needsPlatformTitle(artifact.title, artifact.latest_locator)) continue;
+      const versions = this.database.prepare(`
+        SELECT title, canonical_locator
+        FROM document_versions
+        WHERE artifact_id = ?
+        ORDER BY delivered_at DESC, id DESC
+      `).all(artifact.id);
+      const preferred = versions.find((version) => (
+        !needsPlatformTitle(version.title, version.canonical_locator)
+      ));
+      if (!preferred || preferred.title === artifact.title) continue;
+      this.database.prepare(`
+        UPDATE document_artifacts SET title = ?, updated_at = ? WHERE id = ?
+      `).run(preferred.title, nowIso(), artifact.id);
+      updated += 1;
+    }
+    return updated;
+  }
+
   async #recordCandidate(candidate, context, allowHistoricalSnapshot) {
     const recordedAt = nowIso();
     const artifact = this.#existingArtifact(candidate, candidate.thread.id);
+    if (
+      artifact
+      && needsPlatformTitle(candidate.title, candidate.canonical)
+      && !needsPlatformTitle(artifact.title, artifact.latest_locator)
+    ) {
+      candidate = { ...candidate, title: artifact.title };
+    }
     const artifactId = artifact?.id ?? randomUUID();
     const key = artifact?.logical_key ?? logicalKey(candidate, candidate.thread.id);
     if (!artifact) {
@@ -1092,7 +1252,8 @@ export class DocumentArtifactStore {
       );
     }
     await this.#removeRepeatedPathSnapshots();
-    const renamed = await this.#refreshStoredPlatformTitles();
+    const restoredTitles = this.#restoreMeaningfulArtifactTitles();
+    const renamed = restoredTitles + await this.#refreshStoredPlatformTitles();
     if (this.includeLongTerm) await this.#refreshAutomationPlatformTitles();
     if (created > 0 || renamed > 0) this.onChange({ created, renamed, at: nowIso() });
     return { created, renamed, scannedThreads: batches.length };
@@ -1220,7 +1381,7 @@ export class DocumentArtifactStore {
         }
       }
       for (const source of sources) {
-        for (const candidate of extractCandidates(source.text)) {
+        for (const candidate of extractCandidates(source.text, { requireDelivery: false })) {
           if (candidate.category === "office") continue;
           const existing = references.get(candidate.canonical) ?? {
             canonical: candidate.canonical,
@@ -1629,6 +1790,7 @@ export class DocumentArtifactStore {
 
 export const documentArtifactInternals = {
   classifyOnlineUrl,
+  isDocumentDelivery,
   extractCandidates,
   logicalKey,
   needsPlatformTitle,
